@@ -290,6 +290,18 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.9.1
         version: 0.9.1(hono@4.13.7)(zod@4.5.4)
+      '@pcb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@pcb/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(bun-types@1.4.2)(pg@8.23.0)
       hono:
         specifier: ^4.13.7
         version: 4.13.7
@@ -354,6 +366,9 @@ importers:
 
   packages/db:
     dependencies:
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.23.1)(bun-types@1.4.2)(pg@8.23.0)
@@ -1421,6 +1436,10 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dotenv@16.6.1:
+    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
 
   drizzle-kit@0.31.10:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
@@ -2533,6 +2552,8 @@ snapshots:
   denque@2.1.0: {}
 
   detect-libc@2.1.2: {}
+
+  dotenv@16.6.1: {}
 
   drizzle-kit@0.31.10:
     dependencies:
