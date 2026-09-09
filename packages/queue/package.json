@@ -1,8 +1,17 @@
 {
-  "name": "queue",
+  "name": "@pcb/queue",
+  "version": "0.1.0",
   "module": "index.ts",
+  "main": "index.ts",
+  "types": "index.ts",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "import": "./index.ts"
+    }
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

@@ -149,19 +149,20 @@ POST /content/generate
   - [x] [F-xxx] 引用标记追踪 + [data gap] 缺口提取（base.ts parseOutput 扩展）
 - [x] Step 7：联调 + 防编造验证（facts-loader 单测 + 审核页端到端流程走通）
 
-### P3（自动化邮件调度 + 效果追踪）⬜ 未开始（约 5-7 天工作量）
-- [ ] P3-1 DB Schema 扩展（0.5 天）
-  - [ ] 新增 email_campaigns 表（活动）
-  - [ ] 新增 email_sends 表（单条发送，含 send_id / domain / 状态 / 重试次）
-  - [ ] 新增 email_events 表（Resend webhook 事件：delivered/opened/clicked/bounced/complaint）
-  - [ ] drizzle-kit generate + migrate
-- [ ] P3-2 Mailer 服务（2-3 天）
-  - [ ] apps/mailer 接入 Resend SDK + BullMQ（@pcb/queue 共享）
-  - [ ] sends 路由：单条发送 / 批量入队 / 状态查询
-  - [ ] BullMQ send-worker：常驻进程，Resend 调用 + 3 次重试 + 错误处理
-  - [ ] 配额控制器：每域名 500 封/日、每发件邮箱 50 封/日
-  - [ ] Resend webhook：签名校验 → 写 email_events（webhook 路由）
-  - [ ] Gateway /api/mails 代理
+### P3（自动化邮件调度 + 效果追踪）🔄 进行中（约 5-7 天工作量）—— 2026-09-10
+- [x] P3-1 DB Schema 扩展（0.5 天）—— 2026-09-10
+  - [x] 新增 email_campaigns 表（活动，含 23 列，is_warmup 标记、统计指标、状态机）
+  - [x] 新增 email_sends 表（单条发送，31 列，含 resend_message_id / sending_domain / 状态 / 重试次 / 各时间戳计数）
+  - [x] 新增 email_events 表（Resend webhook 事件，15 列，delivered/opened/clicked/bounced/complaint + 原始 payload）
+  - [x] drizzle-kit generate 生成 0002_complete_dust.sql 迁移（共 12 张表）
+- [x] P3-2 Mailer 服务（2-3 天）—— 2026-09-10（P3-2.5 完成）
+  - [x] apps/mailer 接入 Resend SDK + BullMQ（@pcb/queue 共享）
+  - [x] sends 路由：单条发送 / 批量入队 / 状态查询 / 取消
+  - [x] BullMQ send-worker：常驻进程，Resend 调用 + 3 次重试 + 错误处理
+  - [x] 配额控制器：每域名 500 封/日、每发件邮箱 50 封/日（Redis 计数器 + 内存 fallback）
+  - [x] Resend webhook：签名校验 → 写 email_events + 活动计数器累加 + 投诉率阈值告警
+  - [x] Gateway /api/mails 代理（超时 60s，svix headers 透传）
+  - [x] 发件池轮询（sender-pool）+ unsubscribe footer 注入（GDPR）
 - [ ] P3-3 域名 warmup 策略（1 天）
   - [ ] 4-8 周 warmup 增量计划表（第 1 天 5 封 → 第 8 周 500 封）
   - [ ] 种子邮箱列表（100+，Mailtrap 或自有域名）

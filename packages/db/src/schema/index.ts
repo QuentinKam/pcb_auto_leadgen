@@ -7,3 +7,6 @@ export * from './lead_scores.ts';
 export * from './profiles.ts';
 export * from './content_drafts.ts';
 export * from './audit_logs.ts';
+export * from './email_campaigns.ts';
+export * from './email_sends.ts';
+export * from './email_events.ts';
