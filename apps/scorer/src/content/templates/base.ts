@@ -39,14 +39,16 @@ Hard rules:
 
   /**
    * 解析 LLM 输出，提取 subject / body / usedFacts / gaps
-   * 默认实现：直接把全文作为 body，gaps 通过正则提取
+   * 默认实现：直接把全文作为 body，gaps 和 usedFacts 通过正则提取
    * 子类可覆盖以处理结构化输出
    */
   parseOutput(text: string): ParsedContent {
     const gaps = this.extractGaps(text);
+    const usedFacts = this.extractUsedFacts(text);
+    const cleanedBody = this.stripFactMarkers(text.trim());
     return {
-      body: text.trim(),
-      usedFacts: [],
+      body: cleanedBody,
+      usedFacts,
       gaps,
     };
   }
@@ -60,13 +62,43 @@ Hard rules:
   }
 
   /**
+   * 从文本中提取引用的事实 ID（形如 [F-001]）
+   */
+  protected extractUsedFacts(text: string): string[] {
+    const matches = text.match(/\[F-\d+\]/g) ?? [];
+    const ids = new Set(matches.map((m) => m.replace(/^\[|\]$/g, '')));
+    return Array.from(ids);
+  }
+
+  /**
+   * 移除正文中的事实 ID 标记（保留在 usedFacts 中即可，正文给客户看不需要）
+   */
+  protected stripFactMarkers(text: string): string {
+    return text.replace(/\s*\[F-\d+\]/g, '');
+  }
+
+  /**
    * 格式化事实包为 prompt 文本
+   * 要求 LLM 引用事实时在句子末尾标注 [F-xxx]，用于 usedFacts 追踪
    */
   protected formatFacts(facts: TemplateContext['industryFacts']): string {
-    if (!facts || facts.length === 0) return '(No industry facts available)';
-    return facts
-      .map((f) => `- [${f.id}] ${f.claim} (Source: ${f.source}${f.year ? `, ${f.year}` : ''})`)
-      .join('\n');
+    if (!facts || facts.length === 0) {
+      return [
+        '(No industry facts available. Do NOT invent any market data, statistics, or benchmarks.)',
+        'If you need a specific number, write "[data gap: need the specific fact]" instead of guessing.',
+      ].join('\n');
+    }
+    const lines = facts.map(
+      (f) => `- [${f.id}] ${f.claim} (Source: ${f.source}${f.year ? `, ${f.year}` : ''})`,
+    );
+    lines.push(
+      '',
+      'Usage rules for facts:',
+      '- When you use a fact, append its ID in brackets at the END of the sentence that uses it, e.g. "...trend continues [F-016]."',
+      '- Only use facts that are listed above. Do not invent numbers or statistics.',
+      '- If a specific data point is missing, write "[data gap: need XX]" instead of guessing.',
+    );
+    return lines.join('\n');
   }
 
   /**

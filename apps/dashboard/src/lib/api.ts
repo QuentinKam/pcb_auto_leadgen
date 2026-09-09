@@ -59,6 +59,43 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
+export interface ProfileResponse {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  businessSummary: string | null;
+  productTypes: string[] | null;
+  customerType: string | null;
+  painPoints: string[] | null;
+  buyingSignals: string[] | null;
+  modelVersion: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ContentFormat = 'cold_email' | 'linkedin_dm' | 'industry_blog';
+export type ContentVariant = 'A' | 'B';
+export type ContentStatus = 'generated' | 'approved' | 'rejected' | 'sent';
+
+export interface ContentDraft {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  contactId: string | null;
+  profileId: string | null;
+  format: ContentFormat;
+  variant: ContentVariant;
+  subject: string | null;
+  body: string;
+  status: ContentStatus;
+  usedFacts: string[] | null;
+  gaps: string[] | null;
+  model: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+}
+
 export const api = {
   async listLeadScores(params: {
     page?: number;
@@ -103,5 +140,41 @@ export const api = {
       page: number;
       pageSize: number;
     }>(`/api/companies?${query}`);
+  },
+
+  async generateProfile(companyId: string): Promise<ProfileResponse> {
+    return request<ProfileResponse>(`/api/content/profile/${companyId}`, {
+      method: 'POST',
+    });
+  },
+
+  async generateContent(params: {
+    companyId: string;
+    contactId?: string;
+    format: ContentFormat;
+    variant?: ContentVariant;
+  }): Promise<ContentDraft[]> {
+    return request<ContentDraft[]>('/api/content/generate', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
+  async listContentDrafts(companyId: string): Promise<ContentDraft[]> {
+    return request<ContentDraft[]>(`/api/content/drafts/${companyId}`);
+  },
+
+  async updateContentDraft(
+    draftId: string,
+    params: {
+      status?: ContentStatus;
+      body?: string;
+      subject?: string;
+    },
+  ): Promise<ContentDraft> {
+    return request<ContentDraft>(`/api/content/drafts/${draftId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(params),
+    });
   },
 };

@@ -6,6 +6,7 @@ import 'dotenv/config';
 import { leadScoresRoutes } from './routes/lead-scores.ts';
 import { tenantsRoutes } from './routes/tenants.ts';
 import { companiesRoutes } from './routes/companies.ts';
+import { contentRoutes } from './routes/content.ts';
 
 const app = new Hono();
 
@@ -26,6 +27,7 @@ app.get('/health', (c) =>
 app.route('/api/lead-scores', leadScoresRoutes);
 app.route('/api/tenants', tenantsRoutes);
 app.route('/api/companies', companiesRoutes);
+app.route('/api/content', contentRoutes);
 
 // 404 兜底
 app.notFound((c) => c.json({ error: 'Not Found', code: 'NOT_FOUND' }, 404));

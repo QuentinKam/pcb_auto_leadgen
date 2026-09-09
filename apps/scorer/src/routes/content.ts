@@ -6,6 +6,7 @@ import { db, companies, contacts, leadScores, profiles, contentDrafts } from '@p
 import { generateProfile } from '../content/profile.ts';
 import { generateContent, generateContentAB, getBrandInfo } from '../content/generator.ts';
 import { getActiveModelName } from '../content/llm.ts';
+import { matchRelevantFacts } from '../content/facts-loader.ts';
 import type { ProfileResult, ContentFormat, ContentVariant } from '../content/types.ts';
 
 export const contentRoutes = new Hono();
@@ -169,6 +170,16 @@ contentRoutes.post(
       .orderBy(desc(leadScores.createdAt))
       .limit(1);
 
+    const industryFacts = await matchRelevantFacts(
+      {
+        productTypes: profile.productTypes ?? [],
+        customerType: profile.customerType as ProfileResult['customerType'],
+        painPoints: profile.painPoints ?? [],
+        industry: company.industry,
+      },
+      { format: format as ContentFormat },
+    );
+
     // 组装模板上下文
     const ctx = {
       profile: {
@@ -189,7 +200,7 @@ contentRoutes.post(
         reason: score?.reason ?? 'No score available',
       },
       brand: getBrandInfo(),
-      industryFacts: [], // TODO: 对接 ContentForge facts.json
+      industryFacts,
     };
 
     // 生成内容
