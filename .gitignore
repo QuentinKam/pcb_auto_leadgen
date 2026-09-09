@@ -45,3 +45,5 @@ playwright/.cache/
 .cache/
 *.pem
 *.key
+
+blog/
