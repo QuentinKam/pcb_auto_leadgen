@@ -1,17 +1,28 @@
 {
-  "name": "scorer",
-  "module": "index.ts",
-  "type": "module",
+  "name": "@pcb/scorer",
+  "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "build": "bun build src/index.ts --target bun --outdir dist",
+    "start": "bun run dist/index.js",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@pcb/db": "workspace:*",
+    "@pcb/types": "workspace:*",
+    "@hono/zod-validator": "^0.9.1",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.7",
+    "zod": "^4.5.4",
+    "dotenv": "^16.4.5"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "dependencies": {
-    "@hono/zod-validator": "^0.9.1",
-    "hono": "^4.13.7",
-    "zod": "^4.5.4"
   }
 }

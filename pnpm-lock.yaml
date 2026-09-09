@@ -340,6 +340,18 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.9.1
         version: 0.9.1(hono@4.13.7)(zod@4.5.4)
+      '@pcb/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@pcb/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(bun-types@1.4.2)(pg@8.23.0)
       hono:
         specifier: ^4.13.7
         version: 4.13.7
