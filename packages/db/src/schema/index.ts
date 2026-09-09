@@ -4,4 +4,6 @@ export * from './keywords.ts';
 export * from './companies.ts';
 export * from './contacts.ts';
 export * from './lead_scores.ts';
+export * from './profiles.ts';
+export * from './content_drafts.ts';
 export * from './audit_logs.ts';

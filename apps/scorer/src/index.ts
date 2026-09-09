@@ -4,6 +4,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import 'dotenv/config';
 
 import { scoreRoutes } from './routes/score.ts';
+import { contentRoutes } from './routes/content.ts';
 
 const app = new Hono();
 
@@ -19,6 +20,7 @@ app.get('/health', (c) =>
 );
 
 app.route('/score', scoreRoutes);
+app.route('/content', contentRoutes);
 
 app.notFound((c) => c.json({ error: 'Not Found', code: 'NOT_FOUND' }, 404));
 
