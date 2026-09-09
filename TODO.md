@@ -1,10 +1,12 @@
-# P2 内容生成模块 — 设计与落地 TODO
+# PCB 获客 Agent — 三阶段进度总看板（2026-09-10）
 
-> 范围：`apps/scorer` 新增 `content/` 子模块，实现客户画像 Agent + 个性化触达内容生成（开发信 / LinkedIn 私信），并预留行业博客模板以对接 OPC 申报的"获客内容智能体"叙事。
+> 范围：PCB 外贸 AI 自动获客 Agent 独立产品。总三阶段 MVP：P1（采集+打分+看板）✅、P2（画像+内容+审核）✅、P3（邮件调度+效果追踪）⬜。
 >
 > 关联项目：
 > - 主产品（本仓库）：PCB 外贸获客 Agent = 文档「项目 1」
 > - 配套项目：`/Users/quentingam/Documents/aigc_base_knowledge`（ContentForge）= 文档「项目 5」内容智能体
+>
+> AI 接手必读（下次 AI 进项目自动加载）：`~/.trae/memory/projects/-Users-quentingam-Documents-pcb--p2-515c39674f361c860b5f/project_memory.md`
 
 ---
 
@@ -120,48 +122,125 @@ POST /content/generate
 
 ---
 
-## 四、落地步骤
+---
 
-### Step 1：DB Schema 扩展（0.5 天）
-- [ ] 新增 `profiles` 表
-- [ ] 新增 `content_drafts` 表
-- [ ] 更新 `packages/db/src/schema/index.ts` 导出
-- [ ] 写迁移：`drizzle-kit generate`
+## 四、三阶段总进度
 
-### Step 2：客户画像 Agent（1-2 天）
-- [ ] 定义 `ProfileResult` 类型
-- [ ] 实现 `profile.ts`
-- [ ] 接入路由
-- [ ] 写测试
+### P1（采集 + 打分 + 看板）✅ 完成
+- [x] collector 微服务骨架（apps/collector）
+- [x] scorer 打分模型 v1：规则加权（5 维度 industry/keywords/role/size/reachability，A/B/C 分级）
+- [x] lead_scores / companies / contacts / tenants 等 P1 核心表 + 迁移
+- [x] Gateway：/api/lead-scores、/api/companies、/api/tenants
+- [x] Dashboard LeadsPage：统计卡 + 等级筛选 + 分页列表 + 人工覆盖弹窗
 
-### Step 3：模板基类 + 开发信模板（2 天）
-- [ ] 实现 `templates/base.ts`
-- [ ] 实现 `templates/cold-email.ts`（A/B）
-- [ ] 实现 `generator.ts`
-- [ ] 实现 `llm.ts`
-- [ ] 接入路由
+### P2（客户画像 + 个性化内容 + 内容审核）✅ 完成
+- [x] Step 1：DB Schema 扩展（profiles 表 + content_drafts 表 + drizzle 迁移 + index.ts 导出）
+- [x] Step 2：客户画像 Agent（`apps/scorer/src/content/profile.ts` + 类型 + 路由 + 测例）
+- [x] Step 3：模板基类 + 开发信模板（`base.ts` + `cold-email.ts` + `generator.ts` + `llm.ts`）
+- [x] Step 4：LinkedIn 私信模板（`templates/linkedin-dm.ts`）+ 行业博客模板（`templates/industry-blog.ts`）
+- [x] Step 5：Dashboard 内容审核页
+  - [x] Gateway /api/content 代理（apps/gateway/src/routes/content.ts）
+  - [x] Dashboard api.ts 新增 content 方法 + 类型
+  - [x] ContentReviewPage.tsx：三栏 + A/B 并排 + 批准/驳回/编辑/标记已发送
+  - [x] App.tsx：TabBar 切换（线索看板 ↔ 内容审核）
+- [x] Step 6：ContentForge facts.json 对接
+  - [x] `apps/scorer/src/content/facts-loader.ts`（facts 加载 + 匹配 + 缓存 + format 裁剪）
+  - [x] 生成内容时注入 industryFacts 到模板上下文（替换空数组 TODO）
+  - [x] [F-xxx] 引用标记追踪 + [data gap] 缺口提取（base.ts parseOutput 扩展）
+- [x] Step 7：联调 + 防编造验证（facts-loader 单测 + 审核页端到端流程走通）
 
-### Step 4：LinkedIn 私信模板（1 天）
-- [ ] 实现 `templates/linkedin-dm.ts`
-
-### Step 5：Dashboard 内容审核页（2 天）
-- [ ] 新增 `ContentReviewPage.tsx`
-- [ ] 展示画像 + A/B 内容
-- [ ] 批准/驳回/编辑/导出
-
-### Step 6：行业博客模板（OPC 叙事预留，1 天）
-- [ ] 实现 `templates/industry-blog.ts`
-- [ ] 对接 ContentForge facts.json
-
-### Step 7：联调 + 种子数据验证（1 天）
-- [ ] 跑通：画像 → 生成开发信 A/B → 审核
-- [ ] 验证防编造
+### P3（自动化邮件调度 + 效果追踪）⬜ 未开始（约 5-7 天工作量）
+- [ ] P3-1 DB Schema 扩展（0.5 天）
+  - [ ] 新增 email_campaigns 表（活动）
+  - [ ] 新增 email_sends 表（单条发送，含 send_id / domain / 状态 / 重试次）
+  - [ ] 新增 email_events 表（Resend webhook 事件：delivered/opened/clicked/bounced/complaint）
+  - [ ] drizzle-kit generate + migrate
+- [ ] P3-2 Mailer 服务（2-3 天）
+  - [ ] apps/mailer 接入 Resend SDK + BullMQ（@pcb/queue 共享）
+  - [ ] sends 路由：单条发送 / 批量入队 / 状态查询
+  - [ ] BullMQ send-worker：常驻进程，Resend 调用 + 3 次重试 + 错误处理
+  - [ ] 配额控制器：每域名 500 封/日、每发件邮箱 50 封/日
+  - [ ] Resend webhook：签名校验 → 写 email_events（webhook 路由）
+  - [ ] Gateway /api/mails 代理
+- [ ] P3-3 域名 warmup 策略（1 天）
+  - [ ] 4-8 周 warmup 增量计划表（第 1 天 5 封 → 第 8 周 500 封）
+  - [ ] 种子邮箱列表（100+，Mailtrap 或自有域名）
+  - [ ] warmup worker：每日自动向种子邮箱发送 + 模拟交互（提升 reputation）
+- [ ] P3-4 Dashboard 发送看板（1-2 天）
+  - [ ] CampaignsPage / EmailSendsPage：活动列表 + 单条发送状态
+  - [ ] 统计卡：总发送 / 送达 / 打开 / 回复 / 硬退 / 软退 / 投诉率
+  - [ ] 域名 warmup 状态卡：今日配额 / reputation 分数
+  - [ ] ContentReviewPage 「批准后发送」按钮，调 mailer/sends 入队
+- [ ] P3-5 合规 & 监控（0.5 天）
+  - [ ] 邮件模板强制带 unsubscribe 链接（GDPR）
+  - [ ] complaint rate > 0.1% 自动暂停该域名
+  - [ ] 硬退信 → 立即拉黑 contact；软退信 3 次 → 拉黑
+  - [ ] GDPR 删除公司时级联删 email_sends / email_events
 
 ---
 
-## 五、OPC 申报叙事对接
+## 五、P2 设计与落地细节（原 Section 三、四保留）
 
-### 5.1 三项目闭环图
+### 5.1 模块架构
+
+#### 目录结构
+
+```
+apps/scorer/src/
+├── scoring/              # 已存在：打分模型
+└── content/              # P2 内容生成
+    ├── types.ts          # 类型定义
+    ├── profile.ts        # 客户画像 Agent
+    ├── generator.ts      # 内容生成主入口（模板分发）
+    ├── llm.ts            # LLM 调用封装（Bun fetch 直连 Anthropic / OpenAI 兼容）
+    ├── facts-loader.ts   # ContentForge facts.json 加载 + 匹配（按画像关键词加权）
+    ├── templates/
+    │   ├── base.ts       # 模板基类 + system prompt 约束 + [F-xxx]/[data gap] 解析
+    │   ├── cold-email.ts # 开发信模板（A/B）
+    │   ├── linkedin-dm.ts# LinkedIn 私信模板（A/B）
+    │   └── industry-blog.ts  # 行业博客模板
+    └── routes/content.ts # Hono 路由：/content/profile、/content/generate、/content/drafts
+```
+
+#### 模板差异总览
+
+| 模板 | format | 长度 | 个性化重点 | A/B 变体差异 | facts 注入数量 |
+|---|---|---|---|---|---|
+| cold-email | cold_email | 150-250 词 | 客户产品 + PCB 需求匹配 | A：痛点切入；B：案例/数据切入 | ≤ 5 条 |
+| linkedin-dm | linkedin_dm | 60-120 词 | 联系人职位 + 共同话题 | A：提问式；B：资源分享式 | ≤ 3 条 |
+| industry-blog | industry_blog | 600-1000 词 | 行业趋势 + PCB 选型建议 | A：技术深度；B：采购决策视角 | ≤ 10 条 |
+
+#### facts.json 匹配机制
+- **路径**：默认读 `aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json`（`FACTS_JSON_PATH` 可覆盖）
+- **分类优先级**：market_data=3 分，decision/qa=2 分，standard/param/process=1 分，misc=0 分
+- **关键词加分**：产品/痛点/行业字段命中 +2，customerType 行业词库（汽车/医疗/AI 服务器等 9 类）命中 +3
+- **新鲜度**：有年份 +1，2024+ 再加 +1
+- **质量门槛**：cutoff*0.3 以下结果过滤，避免冷匹配
+
+#### [F-xxx] 引用 + [data gap] 防编造闭环
+1. LLM system prompt 要求：引用事实时在句末加 `[F-016]`；缺数据写 `[data gap: need XX]`，禁止编造
+2. `base.ts parseOutput` 正则提取 usedFacts + gaps，stripFactMarkers 从正文去掉 [F-xxx]（避免客户看到内部标记）
+3. Dashboard 审核页：usedFacts 显示为徽章；gaps 红字提示
+
+### 5.2 与 ContentForge 的协作（原 Section 三）
+
+#### 定位差异
+
+| 维度 | pcb_auto_leadgen P2 | ContentForge |
+|---|---|---|
+| 触达方式 | 1:1 个性化触达 | 1:N 公域内容 |
+| 输入 | 客户画像 + 联系人 + 打分 | 行业选题 + 知识库事实包 |
+| 质量门禁 | 轻（防编造 + [data gap]） | 重（FactChecker + GEOChecker） |
+| 技术栈 | Bun + TS | Python |
+
+#### 复用策略
+- PCB 行业知识库共享：ContentForge 的 `facts.json` 作为 P2 生成开发信时的行业事实源
+- 防编造约束复用：system prompt 照搬 ContentForge 的 `SYSTEM_CONSTRAINT` 思路
+- 品牌档案共享：ContentForge 的 `brand.md` 同时作为 P2 开发信的品牌素材来源（P2 `getBrandInfo` 从 env 取）
+
+### 5.3 OPC 申报叙事对接（原 Section 五）
+
+#### 三项目闭环图
 
 ```
 ContentForge（内容智能体 - 文档项目 5）
@@ -169,38 +248,47 @@ ContentForge（内容智能体 - 文档项目 5）
            │
            ▼ 客户搜索/AI 推荐找上门
 pcb_auto_leadgen（获客 Agent - 文档项目 1）
-  线索采集 → AI 打分(A/B/C) → 客户画像 → 个性化触达
+  线索采集 → AI 打分(A/B/C) → 客户画像 → 个性化触达 → P3 自动发送 → 效果追踪
            │
            ▼ 询盘转化
       订单/合作
 ```
 
-### 5.2 申报材料组织
+---
+
+## 六、OPC 申报材料组织（原 Section 五.二）
 
 1. 项目概述（1 页）
 2. 技术架构（1 页）
 3. 核心功能演示（2-3 页）
+   - P1：打分看板（A/B/C 分级）+ 人工覆盖
+   - P2：内容审核页（画像 + A/B 内容并排 + 审批流 + 事实引用徽章）
+   - P3（预期）：发送看板 + warmup 状态卡
 4. 差异化壁垒（1 页）
+   - ContentForge 知识库复用（facts.json 59 条行业事实 + 防编造）
+   - 三项目闭环：内容智能体获流 → 获客 Agent 转化 → 询盘
 5. 商业模式（1 页）
-6. 合规与安全（0.5 页）
+6. 合规与安全（0.5 页）：GDPR 数据缺口机制 / LinkedIn TOS 合规 / 邮件 unsubscribe
 
 ---
 
-## 六、风险与对策
+## 七、风险与对策
 
-| 风险 | 对策 |
-|---|---|
-| LLM 编造 PCB 行业数据 | system prompt 硬约束 + 事实包注入 + `[数据缺口]` 标记 |
-| 开发信同质化 | A/B 变体 + 客户画像个性化 |
-| 跨项目知识库不同步 | facts.json、brand.md 共享，ContentForge 维护，P2 只读 |
+| 风险 | 对策 | 当前状态 |
+|---|---|---|
+| LLM 编造 PCB 行业数据 | system prompt 硬约束 + 事实包注入 + `[data gap]` 标记 + 审核页红字提示 | ✅ 已落地（facts-loader + base.ts parseOutput） |
+| 开发信同质化 | A/B 变体（开发信 A=痛点切入，B=案例/数据切入）+ 客户画像 5 维个性化 | ✅ 已落地（cold-email.ts） |
+| 跨项目知识库不同步 | facts.json、brand.md 共享，ContentForge 维护，P2 只读（FACTS_JSON_PATH 可覆盖） | ✅ 已落地（facts-loader） |
+| 邮件域名 reputation 差导致进垃圾箱 | 4-8 周 warmup 增量计划 + 种子邮箱 + 域名/邮箱配额 | ⬜ P3-3 待做 |
+| 投诉率过高封号 | Resend webhook 实时收 complaint，>0.1% 自动暂停该域名 | ⬜ P3-5 待做 |
 
 ---
 
-## 七、验收标准
+## 八、验收标准（P1+P2 ✅ 通过）
 
-- [ ] 客户画像 Agent 能提取产品类型、客户类型、痛点
-- [ ] 开发信 A/B 版本有明显差异，且引用客户具体业务
-- [ ] 防编造：诱导 LLM 写不存在的数字时输出 `[数据缺口]`
-- [ ] LinkedIn 私信 ≤ 120 词，口语化，无硬广
-- [ ] dashboard 审核页可批准/驳回/编辑
-- [ ] 行业博客模板能基于 PCB 知识库生成英文长文
+- [x] 客户画像 Agent 能提取产品类型、客户类型、痛点（profile.ts）
+- [x] 开发信 A/B 版本有明显差异，且引用客户具体业务 + 事实数据（cold-email.ts + facts-loader）
+- [x] 防编造：诱导 LLM 写不存在的数字时输出 `[data gap: XX]`，审核页红字提示（base.ts systemConstraint + ContentReviewPage）
+- [x] LinkedIn 私信 ≤ 120 词，口语化，无硬广（linkedin-dm.ts）
+- [x] dashboard 审核页可批准/驳回/编辑 subject+body/标记已发送（ContentReviewPage）
+- [x] 行业博客模板能基于 PCB 知识库生成英文长文（industry-blog.ts + facts-loader top 10 注入）
