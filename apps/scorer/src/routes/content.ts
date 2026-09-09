@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { db, companies, contacts, leadScores, profiles, contentDrafts } from '@pcb/db';
 import { generateProfile } from '../content/profile.ts';
 import { generateContent, generateContentAB, getBrandInfo } from '../content/generator.ts';
+import { getActiveModelName } from '../content/llm.ts';
 import type { ProfileResult, ContentFormat, ContentVariant } from '../content/types.ts';
 
 export const contentRoutes = new Hono();
@@ -32,11 +33,23 @@ contentRoutes.post('/profile/:companyId', async (c) => {
   }
 
   // 调用画像 Agent
-  const profileResult: ProfileResult = await generateProfile(
-    company.name,
-    company.description,
-    company.industry,
-  );
+  let profileResult: ProfileResult;
+  try {
+    profileResult = await generateProfile(
+      company.name,
+      company.description,
+      company.industry,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('API_KEY is not set')) {
+      return c.json(
+        { error: 'LLM API key not configured. Set ANTHROPIC_API_KEY (for Claude) or OPENAI_API_KEY (for DeepSeek/OpenAI-compatible) in apps/scorer/.env.', code: 'LLM_NOT_CONFIGURED' },
+        503,
+      );
+    }
+    throw err;
+  }
 
   // upsert：已存在则更新，不存在则插入
   const existing = await db
@@ -180,9 +193,21 @@ contentRoutes.post(
     };
 
     // 生成内容
-    const results = variant
-      ? [await generateContent(ctx, format as ContentFormat, variant as ContentVariant)]
-      : await generateContentAB(ctx, format as ContentFormat);
+    let results;
+    try {
+      results = variant
+        ? [await generateContent(ctx, format as ContentFormat, variant as ContentVariant)]
+        : await generateContentAB(ctx, format as ContentFormat);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('API_KEY is not set')) {
+        return c.json(
+          { error: 'LLM API key not configured. Set ANTHROPIC_API_KEY (for Claude) or OPENAI_API_KEY (for DeepSeek/OpenAI-compatible) in apps/scorer/.env.', code: 'LLM_NOT_CONFIGURED' },
+          503,
+        );
+      }
+      throw err;
+    }
 
     // 写入 content_drafts 表
     const saved = await Promise.all(
@@ -201,7 +226,7 @@ contentRoutes.post(
             status: 'generated',
             usedFacts: r.usedFacts,
             gaps: r.gaps,
-            model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5',
+            model: getActiveModelName(),
           })
           .returning();
         return inserted;
