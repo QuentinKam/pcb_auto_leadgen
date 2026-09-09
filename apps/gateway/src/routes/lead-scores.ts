@@ -32,20 +32,28 @@ leadScoresRoutes.get(
       return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
     }
 
-    const where = grade
-      ? and(eq(leadScores.tenantId, tenantId), eq(leadScores.finalGrade, grade))
-      : eq(leadScores.tenantId, tenantId);
+    // 打分与覆盖都会产生新记录（不 in-place 更新），看板每家公司只展示最新一条。
+    // 内层 DISTINCT ON 取每公司最新记录，外层再做 grade 筛选 + 分页
+    // （grade 筛选必须在内层之后，否则会把被覆盖公司的旧记录误当最新）。
+    const latestPerCompany = db
+      .selectDistinctOn([leadScores.companyId])
+      .from(leadScores)
+      .where(eq(leadScores.tenantId, tenantId))
+      .orderBy(leadScores.companyId, desc(leadScores.createdAt))
+      .as('latest_per_company');
+
+    const latestWhere = grade ? eq(latestPerCompany.finalGrade, grade) : undefined;
 
     const [totalRow] = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(leadScores)
-      .where(where);
+      .from(latestPerCompany)
+      .where(latestWhere);
 
     const rows = await db
       .select()
-      .from(leadScores)
-      .where(where)
-      .orderBy(desc(leadScores.createdAt))
+      .from(latestPerCompany)
+      .where(latestWhere)
+      .orderBy(desc(latestPerCompany.createdAt))
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 
@@ -122,6 +130,11 @@ leadScoresRoutes.patch(
     if (!tenantId) {
       return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
     }
+    // 人工覆盖必须有操作者：overridden_by 非空才能避开
+    // lead_scores_latest_per_company_idx 部分唯一索引（WHERE overridden_by IS NULL）
+    if (!userId) {
+      return c.json({ error: 'Missing X-User-Id header', code: 'MISSING_USER' }, 400);
+    }
     const { finalGrade, overrideReason } = c.req.valid('json');
 
     const [original] = await db
@@ -159,13 +172,13 @@ leadScoresRoutes.patch(
     // 写审计日志
     await db.insert(auditLogs).values({
       tenantId,
-      userId: userId ?? null,
+      userId,
       action: 'score.override',
       entityType: 'lead_score',
       entityId: original.id,
       before: { finalGrade: original.finalGrade },
       after: { finalGrade, overrideReason },
-      note: `Overridden by ${userId ?? 'unknown'}`,
+      note: `Overridden by ${userId}`,
     });
 
     const data = {

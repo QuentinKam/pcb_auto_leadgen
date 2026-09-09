@@ -105,8 +105,11 @@ companiesRoutes.post(
     }
   }),
   async (c) => {
-    const input = c.req.valid('json');
-    const [row] = await db.insert(companies).values(input).returning();
+    const input = c.req.valid('json') as Omit<typeof companies.$inferInsert, 'tenantId'>;
+    const [row] = await db
+      .insert(companies)
+      .values({ ...input, tenantId: c.req.header('X-Tenant-Id')! })
+      .returning();
     if (!row) {
       return c.json({ error: 'Failed to create company', code: 'INSERT_FAILED' }, 500);
     }

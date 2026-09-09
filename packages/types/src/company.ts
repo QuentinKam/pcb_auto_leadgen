@@ -27,7 +27,6 @@ export const fundingStageEnum = z.enum([
 ]);
 
 export const companyCreateSchema = z.object({
-  tenantId: z.uuid(),
   name: z.string().min(1).max(255),
   website: z.url().max(500).optional(),
   industry: z.string().max(100).optional(),

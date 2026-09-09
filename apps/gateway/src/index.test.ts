@@ -216,6 +216,58 @@ describe('Gateway API', () => {
     });
   });
 
+  test('GET /api/lead-scores returns only the latest record per company after override', async () => {
+    const app = await appPromise;
+    const res = await app.request('/api/lead-scores?page=1&pageSize=10', {
+      headers: { 'X-Tenant-Id': testTenantId },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: Array<{ grade: string; finalGrade: string; overriddenBy: string | null }>;
+      total: number;
+    };
+    // 同一家公司有模型分 + 覆盖分两条记录，列表只展示最新一条
+    expect(body.total).toBe(1);
+    expect(body.data.length).toBe(1);
+    expect(body.data[0]!.grade).toBe('A'); // 模型分保留
+    expect(body.data[0]!.finalGrade).toBe('B'); // 最新状态为覆盖后的 B
+    expect(body.data[0]!.overriddenBy).toBe(testUserId);
+  });
+
+  test('GET /api/lead-scores?grade filters by the latest finalGrade', async () => {
+    const app = await appPromise;
+    const [aRes, bRes] = await Promise.all([
+      app.request('/api/lead-scores?grade=A', {
+        headers: { 'X-Tenant-Id': testTenantId },
+      }),
+      app.request('/api/lead-scores?grade=B', {
+        headers: { 'X-Tenant-Id': testTenantId },
+      }),
+    ]);
+    const aBody = (await aRes.json()) as { total: number };
+    const bBody = (await bRes.json()) as { total: number };
+    expect(aBody.total).toBe(0); // 覆盖后最新等级为 B，不再计入 A
+    expect(bBody.total).toBe(1);
+  });
+
+  test('PATCH /api/lead-scores/:id/override requires X-User-Id header', async () => {
+    const app = await appPromise;
+    const res = await app.request(`/api/lead-scores/${testScoreId}/override`, {
+      method: 'PATCH',
+      headers: {
+        'X-Tenant-Id': testTenantId,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        finalGrade: 'C',
+        overrideReason: 'Missing user header must be rejected before insert',
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe('MISSING_USER');
+  });
+
   test('PATCH /api/lead-scores/:id/override rejects missing reason', async () => {
     const app = await appPromise;
     const res = await app.request(`/api/lead-scores/${testScoreId}/override`, {

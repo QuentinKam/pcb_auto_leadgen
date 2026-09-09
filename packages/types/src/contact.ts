@@ -8,7 +8,6 @@ import { z } from 'zod';
 export const emailVerifiedEnum = z.enum(['valid', 'invalid', 'unknown']);
 
 export const contactCreateSchema = z.object({
-  tenantId: z.uuid(),
   companyId: z.uuid(),
   email: z.email().max(255).optional(),
   name: z.string().max(255).optional(),

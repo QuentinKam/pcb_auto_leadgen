@@ -8,7 +8,6 @@ import { z } from 'zod';
 export const keywordTypeEnum = z.enum(['keyword', 'industry']);
 
 export const keywordCreateSchema = z.object({
-  tenantId: z.uuid(),
   type: keywordTypeEnum,
   value: z.string().min(1).max(100),
   weight: z.number().int().min(-10).max(10).default(1),
