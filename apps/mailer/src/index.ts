@@ -9,6 +9,7 @@ import { resendClient } from './lib/resend-client.ts';
 import { senderPool } from './lib/sender-pool.ts';
 import { warmupConfig } from './lib/warmup-config.ts';
 import { sendsRoutes } from './routes/sends.ts';
+import { statsAndCampaignsRoutes } from './routes/stats-and-campaigns.ts';
 import { warmupRoutes } from './routes/warmup.ts';
 import { webhookRoutes } from './routes/webhook.ts';
 
@@ -53,6 +54,7 @@ app.get('/health', async (c) => {
 app.route('/sends', sendsRoutes);
 app.route('/warmup', warmupRoutes);
 app.route('/webhook', webhookRoutes);
+app.route('/', statsAndCampaignsRoutes);
 
 app.notFound((c) => c.json({ error: 'Not Found', code: 'NOT_FOUND' }, 404));
 

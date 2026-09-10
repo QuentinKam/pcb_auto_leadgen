@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   api,
+  mailApi,
+  contactsApi,
   type ContentDraft,
   type ContentFormat,
   type ProfileResponse,
@@ -149,6 +151,42 @@ export function ContentReviewPage() {
     },
   });
 
+  const sendDraft = useMutation({
+    mutationFn: async (draft: ContentDraft) => {
+      if (!selectedCompanyId) throw new Error('未选择公司');
+      if (draft.status !== 'approved' && draft.status !== 'generated') {
+        throw new Error(`状态 ${draft.status} 不可发送，仅 generated 或 approved 可发`);
+      }
+
+      if (draft.status !== 'approved') {
+        await api.updateContentDraft(draft.id, { status: 'approved' });
+      }
+
+      const contact = await contactsApi.getFirstContactByCompany(selectedCompanyId);
+      if (!contact || !contact.email) {
+        throw new Error('该公司没有可用邮箱的联系人，请先补充联系人');
+      }
+
+      const enqueueRes = await mailApi.enqueueSingle({
+        companyId: selectedCompanyId,
+        contactId: contact.id,
+        contentDraftId: draft.id,
+        variant: draft.variant,
+      });
+
+      await api.updateContentDraft(draft.id, { status: 'sent' });
+      return enqueueRes;
+    },
+    onSuccess: async () => {
+      void queryClient.invalidateQueries({ queryKey: ['contentDrafts', selectedCompanyId] });
+      void queryClient.invalidateQueries({ queryKey: ['mailStats'] });
+      void queryClient.invalidateQueries({ queryKey: ['emailSends'] });
+      await refetchDrafts();
+    },
+  });
+
+  const sendingLoading = sendDraft.isPending || updateDraft.isPending;
+
   function startEdit(draft: ContentDraft) {
     setEditingDraftId(draft.id);
     setEditSubject(draft.subject ?? '');
@@ -167,7 +205,7 @@ export function ContentReviewPage() {
 
   const contentGenerating = generateContent.isPending;
   const profileGenerating = regenerateProfile.isPending;
-  const actionLoading = contentGenerating || profileGenerating || updateDraft.isPending;
+  const actionLoading = contentGenerating || profileGenerating || sendingLoading;
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] p-6">
@@ -388,7 +426,8 @@ export function ContentReviewPage() {
                           onSaveEdit={() => saveEdit(d.id)}
                           onApprove={() => updateDraft.mutate({ id: d.id, status: 'approved' })}
                           onReject={() => updateDraft.mutate({ id: d.id, status: 'rejected' })}
-                          onMarkSent={() => updateDraft.mutate({ id: d.id, status: 'sent' })}
+                          onSendDraft={() => sendDraft.mutate(d)}
+                          sendError={sendDraft.error?.message}
                           actionLoading={actionLoading}
                         />
                       ))}
@@ -451,7 +490,8 @@ interface DraftCardProps {
   onSaveEdit: () => Promise<void> | void;
   onApprove: () => void;
   onReject: () => void;
-  onMarkSent: () => void;
+  onSendDraft: () => void;
+  sendError?: string;
   actionLoading: boolean;
 }
 
@@ -467,7 +507,8 @@ function DraftCard({
   onSaveEdit,
   onApprove,
   onReject,
-  onMarkSent,
+  onSendDraft,
+  sendError,
   actionLoading,
 }: DraftCardProps) {
   return (
@@ -567,13 +608,18 @@ function DraftCard({
               </Button>
               <Button
                 size="sm"
-                variant="outline"
-                disabled={actionLoading || draft.status !== 'approved'}
-                onClick={onMarkSent}
+                variant="default"
+                disabled={actionLoading || draft.status === 'sent' || draft.status === 'rejected'}
+                onClick={onSendDraft}
               >
-                标记已发送
+                {draft.status === 'sent' ? '已入队' : draft.status === 'approved' ? '入队发送' : '批准并发信'}
               </Button>
             </>
+          )}
+          {sendError && (
+            <div className="mt-2 rounded-md border border-[var(--color-destructive)] bg-red-50 p-2 text-[11px] text-[var(--color-destructive)]">
+              发送失败：{sendError}
+            </div>
           )}
         </div>
       </CardContent>

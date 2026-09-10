@@ -178,3 +178,230 @@ export const api = {
     });
   },
 };
+
+export type EmailSendStatus =
+  | 'queued'
+  | 'sending'
+  | 'sent'
+  | 'delivered'
+  | 'opened'
+  | 'clicked'
+  | 'replied'
+  | 'bounced'
+  | 'complained'
+  | 'failed'
+  | 'cancelled';
+
+export interface EmailSendItem {
+  id: string;
+  tenantId: string;
+  campaignId: string | null;
+  companyId: string;
+  contactId: string;
+  contentDraftId: string | null;
+  resendMessageId: string | null;
+  fromEmail: string;
+  fromName: string | null;
+  toEmail: string;
+  toName: string | null;
+  sendingDomain: string;
+  subject: string | null;
+  bodySnapshot: string;
+  variant: string | null;
+  status: EmailSendStatus;
+  retryCount: number;
+  lastError: string | null;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  firstOpenedAt: string | null;
+  lastOpenedAt: string | null;
+  openCount: number;
+  firstClickedAt: string | null;
+  lastClickedAt: string | null;
+  clickCount: number;
+  bouncedAt: string | null;
+  bounceType: string | null;
+  complainedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailSendListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: EmailSendItem[];
+}
+
+export interface EmailCampaignItem {
+  id: string;
+  tenantId: string;
+  name: string;
+  description: string | null;
+  format: string;
+  status: string;
+  targetScoreMin: number | null;
+  targetScoreMax: number | null;
+  totalTargets: number;
+  totalSent: number;
+  totalDelivered: number;
+  totalOpened: number;
+  totalClicked: number;
+  totalReplied: number;
+  totalBounced: number;
+  totalComplained: number;
+  isWarmup: boolean;
+  scheduledAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailCampaignListResponse {
+  total: number;
+  limit: number;
+  offset: number;
+  items: EmailCampaignItem[];
+}
+
+export interface MailStatsResponse {
+  totalSent: number;
+  totalDelivered: number;
+  totalOpened: number;
+  totalClicked: number;
+  totalReplied: number;
+  totalBouncedHard: number;
+  totalBouncedSoft: number;
+  totalComplained: number;
+  complaintRate: number;
+  openRate: number;
+  clickRate: number;
+  bounceRate: number;
+}
+
+export interface WarmupStatusResponse {
+  startDate: string;
+  elapsedDays: number;
+  totalWeeks: number;
+  todaysEntry: { absoluteDay: number; week: number; dayOfWeek: number; targetCount: number } | null;
+  todaySent: number;
+  todayRemaining: number;
+  seedPool: { totalAvailable: number; sample: string[] };
+  sendingDomains: string[];
+  campaignStats: {
+    totalSent: number;
+    totalDelivered: number;
+    totalOpened: number;
+    totalClicked: number;
+    totalBounced: number;
+    totalComplained: number;
+  };
+  reputationScore: number;
+  queue: { waiting: number; active: number; delayed: number };
+}
+
+export interface EnqueueSingleResponse {
+  id: string;
+  status: string;
+}
+
+export const mailApi = {
+  async getStats(): Promise<MailStatsResponse> {
+    return request<MailStatsResponse>('/api/mails/stats');
+  },
+
+  async listCampaigns(params: {
+    page?: number;
+    pageSize?: number;
+    isWarmup?: boolean;
+  } = {}): Promise<EmailCampaignListResponse> {
+    const query = new URLSearchParams();
+    if (params.page) query.set('offset', String((params.page - 1) * (params.pageSize ?? 50)));
+    if (params.pageSize) query.set('limit', String(params.pageSize));
+    if (params.isWarmup !== undefined) query.set('isWarmup', String(params.isWarmup));
+    return request<EmailCampaignListResponse>(`/api/mails/campaigns?${query}`);
+  },
+
+  async listSends(params: {
+    page?: number;
+    pageSize?: number;
+    status?: EmailSendStatus;
+    campaignId?: string;
+    companyId?: string;
+  } = {}): Promise<EmailSendListResponse> {
+    const query = new URLSearchParams();
+    if (params.page) query.set('offset', String((params.page - 1) * (params.pageSize ?? 50)));
+    if (params.pageSize) query.set('limit', String(params.pageSize));
+    if (params.status) query.set('status', params.status);
+    if (params.campaignId) query.set('campaignId', params.campaignId);
+    if (params.companyId) query.set('companyId', params.companyId);
+    return request<EmailSendListResponse>(`/api/mails/sends?${query}`);
+  },
+
+  async getSend(id: string): Promise<EmailSendItem> {
+    return request<EmailSendItem>(`/api/mails/sends/${id}`);
+  },
+
+  async cancelSend(id: string): Promise<{ id: string; status: string }> {
+    return request<{ id: string; status: string }>(`/api/mails/sends/${id}/cancel`, {
+      method: 'POST',
+    });
+  },
+
+  async enqueueSingle(params: {
+    companyId: string;
+    contactId: string;
+    contentDraftId?: string;
+    campaignId?: string;
+    variant?: 'A' | 'B';
+    fromEmail?: string;
+    fromName?: string;
+    subject?: string;
+    bodyOverride?: string;
+  }): Promise<EnqueueSingleResponse> {
+    return request<EnqueueSingleResponse>('/api/mails/sends/single', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
+  async getWarmupStatus(): Promise<WarmupStatusResponse> {
+    return request<WarmupStatusResponse>('/api/mails/warmup/status');
+  },
+};
+
+export interface ContactItem {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  email: string | null;
+  name: string | null;
+  title: string | null;
+  linkedinUrl: string | null;
+  emailVerified: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const contactsApi = {
+  async listContacts(params: {
+    companyId?: string;
+    hasEmail?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ total: number; limit: number; offset: number; items: ContactItem[] }> {
+    const query = new URLSearchParams();
+    if (params.companyId) query.set('companyId', params.companyId);
+    if (params.hasEmail !== undefined) query.set('hasEmail', String(params.hasEmail));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.offset) query.set('offset', String(params.offset));
+    return request(`/api/contacts?${query}`);
+  },
+
+  async getFirstContactByCompany(companyId: string): Promise<ContactItem> {
+    return request<ContactItem>(`/api/contacts/first-by-company/${companyId}`);
+  },
+};

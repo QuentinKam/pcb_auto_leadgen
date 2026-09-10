@@ -52,6 +52,15 @@ async function processSend(
   const domainQuota = await checkAndConsumeDomainQuota(tenantId, record.sendingDomain);
   const fromQuota = await checkAndConsumeFromEmailQuota(tenantId, record.fromEmail);
 
+  if ((domainQuota as unknown as { suspended?: boolean }).suspended) {
+    const reason = `Domain ${record.sendingDomain} SUSPENDED due to complaint rate threshold; manual review required`;
+    await db
+      .update(emailSends)
+      .set({ status: 'blocked', lastError: reason, updatedAt: new Date() })
+      .where(eq(emailSends.id, record.id));
+    throw new Error(reason);
+  }
+
   if (!domainQuota.allowed || !fromQuota.allowed) {
     const reason = !domainQuota.allowed
       ? `Domain daily quota exceeded (${domainQuota.count}/${domainQuota.limit})`

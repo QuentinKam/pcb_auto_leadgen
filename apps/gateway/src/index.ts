@@ -4,6 +4,7 @@ import { secureHeaders } from 'hono/secure-headers';
 import 'dotenv/config';
 
 import { companiesRoutes } from './routes/companies.ts';
+import { contactsRoutes } from './routes/contacts.ts';
 import { contentRoutes } from './routes/content.ts';
 import { leadScoresRoutes } from './routes/lead-scores.ts';
 import { mailRoutes } from './routes/mails.ts';
@@ -28,6 +29,7 @@ app.get('/health', (c) =>
 app.route('/api/lead-scores', leadScoresRoutes);
 app.route('/api/tenants', tenantsRoutes);
 app.route('/api/companies', companiesRoutes);
+app.route('/api/contacts', contactsRoutes);
 app.route('/api/content', contentRoutes);
 app.route('/api/mails', mailRoutes);
 

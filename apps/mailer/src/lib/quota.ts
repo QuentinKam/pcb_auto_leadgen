@@ -43,15 +43,6 @@ async function incrementAndGet(
   }
 }
 
-export async function checkAndConsumeDomainQuota(
-  tenantId: string,
-  domain: string
-): Promise<{ allowed: boolean; count: number; limit: number }> {
-  const key = domainKey(tenantId, domain);
-  const { count, allowed } = await incrementAndGet(key, MAX_DAILY_SENDS_PER_DOMAIN);
-  return { allowed, count, limit: MAX_DAILY_SENDS_PER_DOMAIN };
-}
-
 export async function checkAndConsumeFromEmailQuota(
   tenantId: string,
   fromEmail: string
@@ -77,6 +68,57 @@ export async function rollbackQuota(
     inMemoryCounters.set(dk, Math.max(0, (inMemoryCounters.get(dk) ?? 0) - 1));
     inMemoryCounters.set(fk, Math.max(0, (inMemoryCounters.get(fk) ?? 0) - 1));
   }
+}
+
+export function suspendedDomainKey(domain: string): string {
+  return `pcb:mailer:suspended:domain:${domain.toLowerCase()}`;
+}
+
+const inMemSuspended = new Set<string>();
+
+export async function isDomainSuspended(domain: string): Promise<boolean> {
+  const d = domain.toLowerCase();
+  try {
+    const v = await redis.get(suspendedDomainKey(d));
+    if (v) return true;
+  } catch {
+    if (inMemSuspended.has(d)) return true;
+  }
+  return false;
+}
+
+export async function suspendDomain(domain: string, reason: string): Promise<void> {
+  const d = domain.toLowerCase();
+  const ttlSeconds = 60 * 60 * 24 * 7;
+  try {
+    await redis.set(suspendedDomainKey(d), reason, 'EX', ttlSeconds);
+  } catch {
+    inMemSuspended.add(d);
+  }
+  console.error(
+    `[mailer][compliance] DOMAIN SUSPENDED: ${d} reason=${reason} (will auto-lift in 7 days, or delete key in Redis)`
+  );
+}
+
+export async function unsuspendDomain(domain: string): Promise<void> {
+  const d = domain.toLowerCase();
+  try {
+    await redis.del(suspendedDomainKey(d));
+  } catch {}
+  inMemSuspended.delete(d);
+  console.log(`[mailer][compliance] DOMAIN UNSUSPENDED: ${d}`);
+}
+
+export async function checkAndConsumeDomainQuota(
+  tenantId: string,
+  domain: string
+): Promise<{ allowed: boolean; count: number; limit: number; suspended?: boolean }> {
+  if (await isDomainSuspended(domain)) {
+    return { allowed: false, count: 0, limit: MAX_DAILY_SENDS_PER_DOMAIN, suspended: true };
+  }
+  const key = domainKey(tenantId, domain);
+  const { count, allowed } = await incrementAndGet(key, MAX_DAILY_SENDS_PER_DOMAIN);
+  return { allowed, count, limit: MAX_DAILY_SENDS_PER_DOMAIN };
 }
 
 export const QUOTA_LIMITS = {

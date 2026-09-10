@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LeadsPage } from '@/pages/LeadsPage';
 import { ContentReviewPage } from '@/pages/ContentReviewPage';
+import { CampaignsPage } from '@/pages/CampaignsPage';
+import { EmailSendsPage } from '@/pages/EmailSendsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -12,11 +14,13 @@ const queryClient = new QueryClient({
   },
 });
 
-type TabKey = 'leads' | 'content';
+type TabKey = 'leads' | 'content' | 'campaigns' | 'sends';
 
 const TABS: Array<{ key: TabKey; label: string }> = [
   { key: 'leads', label: '线索看板' },
   { key: 'content', label: '内容审核' },
+  { key: 'campaigns', label: '发送看板' },
+  { key: 'sends', label: '发送记录' },
 ];
 
 function TabBar({ active, onChange }: { active: TabKey; onChange: (k: TabKey) => void }) {
@@ -56,6 +60,8 @@ export default function App() {
         <TabBar active={tab} onChange={setTab} />
         {tab === 'leads' && <LeadsPage />}
         {tab === 'content' && <ContentReviewPage />}
+        {tab === 'campaigns' && <CampaignsPage />}
+        {tab === 'sends' && <EmailSendsPage />}
       </div>
     </QueryClientProvider>
   );

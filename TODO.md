@@ -149,7 +149,7 @@ POST /content/generate
   - [x] [F-xxx] 引用标记追踪 + [data gap] 缺口提取（base.ts parseOutput 扩展）
 - [x] Step 7：联调 + 防编造验证（facts-loader 单测 + 审核页端到端流程走通）
 
-### P3（自动化邮件调度 + 效果追踪）🔄 进行中（约 5-7 天工作量）—— 2026-09-10
+### P3（自动化邮件调度 + 效果追踪）✅ 完成 —— 2026-09-10
 - [x] P3-1 DB Schema 扩展（0.5 天）—— 2026-09-10
   - [x] 新增 email_campaigns 表（活动，含 23 列，is_warmup 标记、统计指标、状态机）
   - [x] 新增 email_sends 表（单条发送，31 列，含 resend_message_id / sending_domain / 状态 / 重试次 / 各时间戳计数）
@@ -170,16 +170,20 @@ POST /content/generate
   - [x] mock 模式自动模拟 open/click 交互：WARMUP_SIM_OPEN_RATE 0.75 + WARMUP_SIM_CLICK_RATE 0.35，延迟区间 WARMUP_SIM_DELAY_MIN/MAX_MS（默认 1min-15min 随机），直接回写 email_sends 状态 + bumpCampaignCounters
   - [x] warmup 路由：/warmup/status（今日目标/已发/剩余 + seedPool + 域名 + campaignStats + reputationScore 0-100 + queue counter）+ /warmup/plan（近期14天计划表）+ /warmup/recent（最近50条 warmup 发送记录）+ /warmup/trigger（手动触发 可 seedEmails/countOverride）+ /warmup/reschedule
   - [x] /health 已挂 warmup info（enabled/startDate/elapsedDays/todaysTarget/seedPoolSize/domains）；package.json 新增 warmup / start:warmup 脚本；.env.example 新增 9 项 warmup 配置注释
-- [ ] P3-4 Dashboard 发送看板（1-2 天）
-  - [ ] CampaignsPage / EmailSendsPage：活动列表 + 单条发送状态
-  - [ ] 统计卡：总发送 / 送达 / 打开 / 回复 / 硬退 / 软退 / 投诉率
-  - [ ] 域名 warmup 状态卡：今日配额 / reputation 分数
-  - [ ] ContentReviewPage 「批准后发送」按钮，调 mailer/sends 入队
-- [ ] P3-5 合规 & 监控（0.5 天）
-  - [ ] 邮件模板强制带 unsubscribe 链接（GDPR）
-  - [ ] complaint rate > 0.1% 自动暂停该域名
-  - [ ] 硬退信 → 立即拉黑 contact；软退信 3 次 → 拉黑
-  - [ ] GDPR 删除公司时级联删 email_sends / email_events
+- [x] P3-4 Dashboard 发送看板（1-2 天）—— 2026-09-10
+  - [x] 新增 gateway contacts 路由：/api/contacts/first-by-company/:id（发送前查公司下第一个有效邮箱联系人）
+  - [x] 新增 mailer /stats + /campaigns 路由（stats-and-campaigns.ts），dashboard 通过 gateway /api/mails/* 代理
+  - [x] api.ts 新增 mailApi（getStats/listCampaigns/listSends/enqueueSingle/getWarmupStatus/...）+ contactsApi 类型和方法
+  - [x] CampaignsPage：7 张统计卡（总发送/送达/打开/回复/硬退/软退/投诉率）+ 域名 warmup 状态卡（今日目标×已发 + reputation 0-100 + BullMQ queue 计数）+ 活动列表（含 warmup 活动区分）
+  - [x] EmailSendsPage：12 种状态筛选 + 单条发送列表（收件人/主题预览/域名/开点计数/时间戳）+ 取消排队发送 + 分页 + 每 30s 自动刷新
+  - [x] ContentReviewPage：DraftCard「标记已发送」替换为「批准并发信」按钮（generated/approved → approved → getFirstContactByCompany → enqueueSingle → sent），错误 red banner 提示
+  - [x] App.tsx TabBar 新增 2 个 Tab：发送看板（CampaignsPage）、发送记录（EmailSendsPage），共 4 Tab
+- [x] P3-5 合规 & 监控（0.5 天）—— 2026-09-10
+  - [x] 邮件模板强制带 unsubscribe 链接（resend-client.send() 内部调用 injectUnsubscribeFooter，HTML 插 </body> 前，Text 末尾分隔线，HMAC-SHA256 token 防篡改，env INJECT_UNSUBSCRIBE 开关）
+  - [x] complaint rate > 0.1%（可配置）：handleComplaintThreshold 实际调用 suspendDomain() → Redis key pcb:mailer:suspended:domain:<domain> TTL 7天 → send-worker checkAndConsumeDomainQuota 检测 suspended 直接 return blocked 状态；内存 fallback Set 同步写入
+  - [x] 硬退信 → handleBounceBlacklist 直接 contacts.active=false；软退信累计 SOFT_BOUNCE_BLACKLIST_THRESHOLD（默认3）次 → 拉黑 contact
+  - [x] .env.example 补 SOFT_BOUNCE_BLACKLIST_THRESHOLD=3 注释
+  - [x] GDPR 删除公司时级联删 email_sends / email_events（PG FK cascade on delete 在 drizzle schema 已配 tenantFk / companyFk / contactFk .onDelete('cascade')，DB 级级联已覆盖）
 
 ---
 
@@ -283,8 +287,8 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 | LLM 编造 PCB 行业数据 | system prompt 硬约束 + 事实包注入 + `[data gap]` 标记 + 审核页红字提示 | ✅ 已落地（facts-loader + base.ts parseOutput） |
 | 开发信同质化 | A/B 变体（开发信 A=痛点切入，B=案例/数据切入）+ 客户画像 5 维个性化 | ✅ 已落地（cold-email.ts） |
 | 跨项目知识库不同步 | facts.json、brand.md 共享，ContentForge 维护，P2 只读（FACTS_JSON_PATH 可覆盖） | ✅ 已落地（facts-loader） |
-| 邮件域名 reputation 差导致进垃圾箱 | 4-8 周 warmup 增量计划 + 种子邮箱 + 域名/邮箱配额 | ⬜ P3-3 待做 |
-| 投诉率过高封号 | Resend webhook 实时收 complaint，>0.1% 自动暂停该域名 | ⬜ P3-5 待做 |
+| 邮件域名 reputation 差导致进垃圾箱 | 4-8 周 warmup 增量计划 + 种子邮箱 + 域名/邮箱配额 | ✅ 已落地（warmup-config + warmup-worker + 配额控制） |
+| 投诉率过高封号 | Resend webhook 实时收 complaint，>0.1% 自动暂停该域名 | ✅ 已落地（webhook handleComplaintThreshold + quota suspendDomain + send-worker blocked 拦截） |
 
 ---
 

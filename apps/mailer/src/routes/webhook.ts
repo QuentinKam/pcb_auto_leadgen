@@ -1,7 +1,9 @@
-import { emailCampaigns, emailEvents, emailSends } from '@pcb/db/schema';
-import { and, eq, sql } from 'drizzle-orm';
+import { contacts, emailCampaigns, emailEvents, emailSends } from '@pcb/db/schema';
+import { and, countDistinct, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../lib/db.ts';
+import { redis } from '../lib/redis.ts';
+import { suspendDomain } from '../lib/quota.ts';
 import { verifyResendWebhookSignature } from '../lib/resend-client.ts';
 
 const app = new Hono();
@@ -150,13 +152,14 @@ app.post('/resend', async (c) => {
       await bumpCampaignCounters(matched.campaignId, eventType);
     }
 
-    if (
-      eventType === 'email.bounced' &&
-      typeof bounceTypeRaw === 'string' &&
-      bounceTypeRaw.toLowerCase().startsWith('hard')
-    ) {
-      console.warn(
-        `[mailer][compliance] HARD_BOUNCE contact via send ${matched.id}, recommend blacklisting contact`
+    if (eventType === 'email.bounced') {
+      const isHard =
+        typeof bounceTypeRaw === 'string' && bounceTypeRaw.toLowerCase().startsWith('hard');
+      await handleBounceBlacklist(
+        actualTenantId,
+        matched.id,
+        matched.campaignId,
+        isHard
       );
     }
 
@@ -202,27 +205,105 @@ async function bumpCampaignCounters(campaignId: string, eventType: string): Prom
     .where(eq(emailCampaigns.id, campaignId));
 }
 
-async function handleComplaintThreshold(tenantId: string, _sendId: string): Promise<void> {
+async function handleComplaintThreshold(tenantId: string, sendId: string): Promise<void> {
   const threshold = Number(process.env.COMPLAINT_RATE_THRESHOLD ?? 0.001);
-  const rows = (await db
+  const sendRows = (await db
     .select({
-      sent: sql<number>`COUNT(*) FILTER (WHERE ${emailSends.status} IN ('sent','delivered','opened','clicked','complained','bounced'))`,
-      complained: sql<number>`COUNT(*) FILTER (WHERE ${emailSends.status} = 'complained')`,
+      sendingDomain: emailSends.sendingDomain,
+      sent: sql<number>`COUNT(*) OVER ()`,
+      complained: sql<number>`SUM(CASE WHEN ${emailSends.status} = 'complained' THEN 1 ELSE 0 END) OVER ()`,
     })
     .from(emailSends)
-    .where(eq(emailSends.tenantId, tenantId))) as unknown as Array<{
+    .where(and(eq(emailSends.tenantId, tenantId), eq(emailSends.id, sendId)))
+    .limit(1)) as unknown as Array<{
+    sendingDomain: string;
     sent: number;
     complained: number;
   }>;
-  const row = rows[0];
-  const totalSent = Number(row?.sent ?? 0);
-  const totalComplained = Number(row?.complained ?? 0);
-  if (totalSent <= 0) return;
-  const rate = totalComplained / totalSent;
-  if (rate >= threshold) {
+  const perDomainRows = (await db
+    .select({
+      domainSent: sql<number>`COUNT(*) FILTER (WHERE ${emailSends.status} IN ('sent','delivered','opened','clicked','complained','bounced'))`,
+      domainComplained: sql<number>`COUNT(*) FILTER (WHERE ${emailSends.status} = 'complained')`,
+    })
+    .from(emailSends)
+    .where(and(eq(emailSends.tenantId, tenantId), eq(emailSends.sendingDomain, sendRows[0]?.sendingDomain ?? '')))) as unknown as Array<{
+    domainSent: number;
+    domainComplained: number;
+  }>;
+
+  const domain = sendRows[0]?.sendingDomain;
+  const globalSent = Number(sendRows[0]?.sent ?? 0);
+  const globalComplained = Number(sendRows[0]?.complained ?? 0);
+  const domainSent = Number(perDomainRows[0]?.domainSent ?? 0);
+  const domainComplained = Number(perDomainRows[0]?.domainComplained ?? 0);
+
+  const globalRate = globalSent > 0 ? globalComplained / globalSent : 0;
+  const domainRate = domainSent > 0 ? domainComplained / domainSent : 0;
+
+  if (globalRate >= threshold || domainRate >= threshold) {
+    const rate = Math.max(globalRate, domainRate);
+    const reason = `Complaint rate ${(rate * 100).toFixed(3)}% >= threshold ${(threshold * 100).toFixed(3)}% (tenant=${tenantId}, domain=${domain ?? 'unknown'})`;
     console.error(
-      `[mailer][ALERT] Complaint rate ${(rate * 100).toFixed(3)}% >= threshold ${(threshold * 100).toFixed(3)}% for tenant ${tenantId}. PAUSING outbound sends — manual intervention required.`
+      `[mailer][ALERT] ${reason}. SUSPENDING OUTBOUND DOMAIN — manual intervention required.`
     );
+    if (domain) {
+      await suspendDomain(domain, reason);
+    }
+  }
+}
+
+async function handleBounceBlacklist(
+  tenantId: string,
+  sendId: string,
+  campaignId: string | null,
+  isHard: boolean
+): Promise<void> {
+  void campaignId;
+  const sendRows = (await db
+    .select({
+      contactId: emailSends.contactId,
+      toEmail: emailSends.toEmail,
+    })
+    .from(emailSends)
+    .where(and(eq(emailSends.tenantId, tenantId), eq(emailSends.id, sendId)))
+    .limit(1)) as unknown as Array<{ contactId: string; toEmail: string }>;
+  const send = sendRows[0];
+  if (!send) return;
+
+  if (isHard) {
+    console.warn(
+      `[mailer][compliance] HARD_BOUNCE → blacklist contact ${send.contactId} (email=${send.toEmail})`
+    );
+    await db
+      .update(contacts)
+      .set({ active: false, updatedAt: new Date() })
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, send.contactId)));
+    return;
+  }
+
+  const softBounceCountRows = (await db
+    .select({
+      cnt: countDistinct(emailSends.id),
+    })
+    .from(emailSends)
+    .where(
+      and(
+        eq(emailSends.tenantId, tenantId),
+        eq(emailSends.contactId, send.contactId),
+        eq(emailSends.status, 'bounced'),
+        eq(emailSends.bounceType, 'soft')
+      )
+    )) as unknown as Array<{ cnt: number }>;
+  const softCount = Number(softBounceCountRows[0]?.cnt ?? 0) + 1;
+  const threshold = Number(process.env.SOFT_BOUNCE_BLACKLIST_THRESHOLD ?? 3);
+  if (softCount >= threshold) {
+    console.warn(
+      `[mailer][compliance] SOFT_BOUNCE count=${softCount} >= ${threshold} → blacklist contact ${send.contactId} (email=${send.toEmail})`
+    );
+    await db
+      .update(contacts)
+      .set({ active: false, updatedAt: new Date() })
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, send.contactId)));
   }
 }
 
