@@ -155,6 +155,7 @@ POST /content/generate
   - [x] 新增 email_sends 表（单条发送，31 列，含 resend_message_id / sending_domain / 状态 / 重试次 / 各时间戳计数）
   - [x] 新增 email_events 表（Resend webhook 事件，15 列，delivered/opened/clicked/bounced/complaint + 原始 payload）
   - [x] drizzle-kit generate 生成 0002_complete_dust.sql 迁移（共 12 张表）
+  - [x] 2026-09-10 已跑 `pnpm --filter @pcb/db migrate`，本地 pcb_leadgen DB 表从 9 张（P1）+ 2 张（P2）→ 12/12 张齐，drizzle.__drizzle_migrations 记录 0002 id 写入成功
 - [x] P3-2 Mailer 服务（2-3 天）—— 2026-09-10（P3-2.5 完成）
   - [x] apps/mailer 接入 Resend SDK + BullMQ（@pcb/queue 共享）
   - [x] sends 路由：单条发送 / 批量入队 / 状态查询 / 取消
@@ -292,7 +293,30 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 
 ---
 
-## 八、验收标准（P1+P2 ✅ 通过）
+## 八、静态验证 & 用例结果（2026-09-10）
+
+### 8.1 lint + build ✅
+- [x] Biome lint：112 文件扫描通过（3 条 a11y 建议，不阻塞构建）
+- [x] `pnpm build`：4/4 packages 全绿（@pcb/gateway / @pcb/scorer / @pcb/mailer / @pcb/dashboard）
+  - 顺带修：apps/dashboard/tsconfig.app.json 加 `"ignoreDeprecations":"6.0"` 消 TS5101 baseUrl deprecated
+  - 顺带修：apps/dashboard/src/pages/CampaignsPage.tsx 删未用 MailStatsResponse import 消 TS6133
+
+### 8.2 单元测试 ✅ 78/78 pass, 0 fail
+- [x] @pcb/types：16/16（zod schema 校验）
+- [x] @pcb/db：3/3
+- [x] @pcb/scorer：42/42（打分模型 + content/generator/facts-loader + profile）
+  - 顺带修：apps/scorer/.env 补 `FACTS_JSON_PATH=/Users/quentingam/Documents/aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json`，跨项目 facts.json 读不到 → 42/42 全绿
+- [x] @pcb/gateway：17/17（路由 handler 单测）
+- [x] @pcb/mailer / @pcb/dashboard：暂无 .test.ts，package.json 改 `bun test --pass-with-no-tests`（连字符，下划线参数无效）
+
+### 8.3 DB 迁移 0002 ✅
+- [x] PostgreSQL 5432 运行中（pg_isready OK），Redis 6379 运行中（PONG OK）
+- [x] `pnpm --filter @pcb/db migrate` 跑 0002_complete_dust.sql 成功
+- [x] 结果：12/12 张表就位（tenants / users / keywords / companies / contacts / lead_scores / audit_logs + profiles / content_drafts + email_campaigns / email_sends / email_events）
+
+---
+
+## 九、验收标准（P1+P2 ✅ 通过）
 
 - [x] 客户画像 Agent 能提取产品类型、客户类型、痛点（profile.ts）
 - [x] 开发信 A/B 版本有明显差异，且引用客户具体业务 + 事实数据（cold-email.ts + facts-loader）
