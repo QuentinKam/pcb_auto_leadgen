@@ -163,10 +163,13 @@ POST /content/generate
   - [x] Resend webhook：签名校验 → 写 email_events + 活动计数器累加 + 投诉率阈值告警
   - [x] Gateway /api/mails 代理（超时 60s，svix headers 透传）
   - [x] 发件池轮询（sender-pool）+ unsubscribe footer 注入（GDPR）
-- [ ] P3-3 域名 warmup 策略（1 天）
-  - [ ] 4-8 周 warmup 增量计划表（第 1 天 5 封 → 第 8 周 500 封）
-  - [ ] 种子邮箱列表（100+，Mailtrap 或自有域名）
-  - [ ] warmup worker：每日自动向种子邮箱发送 + 模拟交互（提升 reputation）
+- [x] P3-3 域名 warmup 策略（1 天）—— 2026-09-10
+  - [x] 4-8 周 warmup 增量计划表（第 1 天 5 封 → 第 8 周 500 封，内置 46 档梯度，weekday-only，按 elapsed+absoluteDay 双索引）
+  - [x] 种子邮箱队列（WARMUP_SEED_EMAILS JSON 数组 env 配置，100+ 自有真实邮箱最佳，pickSeedEmails 轮询填充目标数）
+  - [x] warmup worker：独立 BullMQ Queue + Worker，每日 cron（WARMUP_DAILY_CRON 默认 UTC 2am）→ processDailyWarmup → 按目标数派单 → processWarmupSend（走 quota + senderPool 轮询 + 3 variant body + 写 email_campaigns is_warmup=true + email_sends）
+  - [x] mock 模式自动模拟 open/click 交互：WARMUP_SIM_OPEN_RATE 0.75 + WARMUP_SIM_CLICK_RATE 0.35，延迟区间 WARMUP_SIM_DELAY_MIN/MAX_MS（默认 1min-15min 随机），直接回写 email_sends 状态 + bumpCampaignCounters
+  - [x] warmup 路由：/warmup/status（今日目标/已发/剩余 + seedPool + 域名 + campaignStats + reputationScore 0-100 + queue counter）+ /warmup/plan（近期14天计划表）+ /warmup/recent（最近50条 warmup 发送记录）+ /warmup/trigger（手动触发 可 seedEmails/countOverride）+ /warmup/reschedule
+  - [x] /health 已挂 warmup info（enabled/startDate/elapsedDays/todaysTarget/seedPoolSize/domains）；package.json 新增 warmup / start:warmup 脚本；.env.example 新增 9 项 warmup 配置注释
 - [ ] P3-4 Dashboard 发送看板（1-2 天）
   - [ ] CampaignsPage / EmailSendsPage：活动列表 + 单条发送状态
   - [ ] 统计卡：总发送 / 送达 / 打开 / 回复 / 硬退 / 软退 / 投诉率

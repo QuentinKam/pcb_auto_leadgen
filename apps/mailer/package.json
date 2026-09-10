@@ -7,9 +7,11 @@
   "scripts": {
     "dev": "bun run --hot src/index.ts",
     "worker": "bun run --hot src/workers/send-worker.ts",
-    "build": "bun build src/index.ts src/workers/send-worker.ts --target bun --outdir dist",
+    "warmup": "bun run --hot src/workers/warmup-worker.ts",
+    "build": "bun build src/index.ts src/workers/send-worker.ts src/workers/warmup-worker.ts --target bun --outdir dist",
     "start": "bun run dist/index.js",
     "start:worker": "bun run dist/send-worker.js",
+    "start:warmup": "bun run dist/warmup-worker.js",
     "test": "bun test"
   },
   "dependencies": {

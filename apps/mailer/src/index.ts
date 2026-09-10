@@ -7,7 +7,9 @@ import { QUOTA_LIMITS } from './lib/quota.ts';
 import { ensureRedisConnected } from './lib/redis.ts';
 import { resendClient } from './lib/resend-client.ts';
 import { senderPool } from './lib/sender-pool.ts';
+import { warmupConfig } from './lib/warmup-config.ts';
 import { sendsRoutes } from './routes/sends.ts';
+import { warmupRoutes } from './routes/warmup.ts';
 import { webhookRoutes } from './routes/webhook.ts';
 
 const app = new Hono();
@@ -23,6 +25,7 @@ app.get('/health', async (c) => {
     redisOk = false;
   }
   await ensureRedisConnected().catch(() => {});
+  const todaysEntry = warmupConfig.getTodaysEntry();
   return c.json({
     service: 'mailer',
     status: 'ok',
@@ -35,11 +38,20 @@ app.get('/health', async (c) => {
       domains: senderPool.listDomains(),
     },
     quota: QUOTA_LIMITS,
+    warmup: {
+      enabled: process.env.WARMUP_ENABLED !== 'false',
+      startDate: warmupConfig.getStartDate().toISOString().slice(0, 10),
+      elapsedDays: warmupConfig.getElapsedDays(),
+      todaysTarget: todaysEntry?.targetCount ?? 0,
+      seedPoolSize: warmupConfig.plan.seedEmails.length,
+      sendingDomains: warmupConfig.getDomainCandidates(),
+    },
     redis: redisOk ? 'ready' : 'disconnected (in-memory fallback active)',
   });
 });
 
 app.route('/sends', sendsRoutes);
+app.route('/warmup', warmupRoutes);
 app.route('/webhook', webhookRoutes);
 
 app.notFound((c) => c.json({ error: 'Not Found', code: 'NOT_FOUND' }, 404));
@@ -58,5 +70,5 @@ export default {
 };
 
 console.log(
-  `[mailer] Listening on http://localhost:${port} | resend_mode=${resendClient.isMock ? 'MOCK' : 'LIVE'} | senders=${senderPool.all().length} | domains=${senderPool.listDomains().join(',')}`
+  `[mailer] Listening on http://localhost:${port} | resend_mode=${resendClient.isMock ? 'MOCK' : 'LIVE'} | senders=${senderPool.all().length} | domains=${senderPool.listDomains().join(',')} | warmup_enabled=${process.env.WARMUP_ENABLED !== 'false'} | warmup_seeds=${warmupConfig.plan.seedEmails.length}`
 );
