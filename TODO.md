@@ -426,3 +426,121 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - [ ] PM2 日志未配轮转（`pm2 install pm2-logrotate`），长期运行需补
 - [ ] 未配域名/HTTPS（`rakuto.store` 未解析到本机，且大陆机器需 ICP 备案）
 
+---
+
+## 十三、简历口径对齐 TODO（2026-09-10 复核产出）
+
+> 背景：简历已按「目标口径」写入本项目能力描述，落点见
+> `ai-job-search-cn-master/cv.md`、`ai-job-search-cn-master/cv-PCB外贸AI获客系统.md`、
+> `ai-job-search-cn-master/documents/china/profile/evidence.md`。
+> 本节把「简历这么写了、代码还没到位」的差距逐条列出。做完一条勾一条；全部做完后，
+> 简历措辞可从「目标口径」收敛为「已验证事实」。
+>
+> 复核方法：逐条回读源码 + 实跑 `pnpm build` / `pnpm test`（2026-09-10）。
+
+### 13.1 采集模块未实现（最高优先级）
+
+**简历声明**：「企业采集 → 5 维度打分 …」「实现过完整采集链路：Crawlee + Playwright 抓取 Google / Apollo 企业信息与官网，遵守 robots.txt、限流间隔 ≥2s、代理 IP 池」
+
+**实测现状**：
+- `apps/collector/index.ts` 全文仅 1 行 `console.log('Hello via Bun!')`，无任何采集逻辑
+- 全仓库无 `crawlee` / `playwright` 依赖（全量 grep 无命中）
+- 演示环境 `http://47.251.97.20:8090` 的线索**全部来自 `scripts/demo/seed.ts` 种子数据**（标记 `companies.raw_payload->>'demo' = 'true'`），非采集所得
+- 即：P1 三件事里的「线索采集」实为未实现；§四 记的 P1「完成」实际只覆盖打分 + 看板
+
+- [ ] `pnpm --filter collector add crawlee playwright` 并锁版本
+- [ ] 实现搜索 API 采集器（关键词 + 地区 + 分页），产出原始 company 记录
+- [ ] 实现 Apollo.io 企业信息采集（走 `APOLLO_API_KEY`，遵守其 API 配额）
+- [ ] 实现官网 enrich（公司域名 → 抓 about / products 页 → 抽产品与行业信号）
+- [ ] robots.txt 校验 + 请求间隔 ≥2s + 重试退避（AGENTS.md §8 法律合规红线）
+- [ ] 代理 IP 池接入（`BRIGHTDATA_TOKEN` 已在 AGENTS.md §9 约定）
+- [ ] 采集产物写库时打 `demo=false` 标记，与种子数据可区分
+- [ ] 补采集器单测（限流计数、robots 拒绝、字段映射）
+
+**验收**：一次真实采集 run 后 `/api/lead-scores` 出现非 demo 标记的真实线索；采集器关键路径有测试覆盖。
+
+### 13.2 打分是规则加权，不是 AI（口径二选一）
+
+**简历声明**：「5 维度 **AI** 打分 A/B/C 分级」
+
+**实测现状**：`apps/scorer/src/scoring/{industry,keywords,role,size,reachability}.ts` 为纯确定性规则函数，`scoring/` 目录内零 LLM 调用。spec.md §12 与 OPC 文档自身的措辞是「5 维度**规则**加权打分」。
+
+- [ ] 二选一，选完同步改简历措辞：
+  - **方案 A（改口径，零成本）**：简历统一改为「5 维度规则加权打分 + AI 生成打分理由」，与 spec.md §12 对齐
+  - **方案 B（补实现）**：在规则分之上加 LLM 复核层——复用 `apps/scorer/src/content/llm.ts`，让 LLM 读事实包 + 公司描述，输出行业匹配复核意见与自然语言研判理由，写入 `lead_scores.reason`
+
+**验收（若选 B）**：打分链路出现真实 LLM 调用；LLM 调用失败时降级为规则分，不阻塞入库。
+
+### 13.3 测试套件不可复现 + 4 个用例失败（可直接修）
+
+**简历声明**：「80 个单元测试用例覆盖打分模型、发送配额、webhook 验签、类型校验」
+
+**实测现状（2026-09-10 实跑）**：实际 **83 个用例**
+| 包 | 结果 |
+|---|---|
+| `@pcb/types` | 16 pass / 0 fail |
+| `@pcb/db` | 3 pass / 0 fail |
+| `@pcb/gateway` | 17 pass / 0 fail |
+| `@pcb/mailer` | 5 pass / 0 fail |
+| `@pcb/scorer` | **38 pass / 4 fail**（共 42） |
+| 合计 | **79 pass / 4 fail**（共 83） |
+
+- **失败根因**：`apps/scorer/.env` 的 `FACTS_JSON_PATH` 写死绝对路径
+  `/Users/quentingam/Documents/aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json`，
+  仓库迁入 `PCB_ALL/` 后该路径失效 → facts-loader 4 个用例读不到 facts.json
+- §8.2 记录的「78/78」已过期（该数字早于 mailer 新增用例；16+3+42+17=78）
+- **未写进文档的坑**：在仓库根目录直接 `bun test` 会失败（cwd 为根，不加载各包 `.env`），
+  必须走 `pnpm test` 或进包目录跑
+
+- [ ] 修 `apps/scorer/.env` 与 `.env.example` 的 `FACTS_JSON_PATH` 为当前真实路径
+- [ ] 改为相对路径或由根目录推导，避免下次迁移再断
+- [ ] 在 AGENTS.md 注明「测试须在包目录下跑或走 `pnpm test`」
+- [ ] 更新 §8.2 的用例总数为 83，并标注 scorer 依赖 `FACTS_JSON_PATH`
+- [ ] 简历措辞把「80」改为实测数「83」
+
+**验收**：`pnpm test` 全绿 0 fail。
+
+### 13.4 共享包为占位（结构有了，实现没有）
+
+**简历声明**：「5 个共享包 `db / queue / types / ui / config`」
+
+**实测现状**（源码行数，已排除 node_modules）：
+- 有实现：`packages/db` 713 行、`packages/types` 352 行
+- **占位 1 行**：`packages/queue`、`packages/ui`、`packages/config`
+- 实际队列逻辑在 `apps/mailer/src/lib/queue.ts`；shadcn 组件在 `apps/dashboard/src/components/ui/`
+
+- [ ] 把 `apps/mailer/src/lib/queue.ts` 抽到 `packages/queue`，mailer 改为引用
+- [ ] 把 dashboard 的 shadcn 组件抽到 `packages/ui`
+- [ ] 把 biome / tsconfig 共享配置抽到 `packages/config`
+
+**验收**：三个包不再是 1 行占位；`pnpm build` 仍全绿；无 apps 之间直接 import（AGENTS.md §8 架构红线）。
+
+### 13.5 无鉴权，多租户隔离仅靠请求头
+
+**简历声明**：把「多租户数据隔离」写入合规设计段，与 GDPR / CAN-SPAM 并列
+
+**实测现状**：`apps/gateway/src/routes/*.ts` 每个查询都带 `eq(table.tenantId, tenantId)`，`tenantId` 取自请求头 `X-Tenant-Id`，缺失时 404；但**无任何鉴权**，调用方可任意伪造租户 ID。DEPLOY.md 自述「应用本身没有任何登录鉴权…靠 nginx basic auth 兜底」。
+
+- [ ] 实现 JWT 鉴权中间件，`tenant_id` 从 token 解析（AGENTS.md §9 已约定「生产从 JWT 解析」）
+- [ ] 移除对 `X-Tenant-Id` 请求头的信任，或仅在开发环境允许
+- [ ] 补测试：无 token → 401；跨租户读取 → 404
+
+**验收**：无 token 无法访问任何 `/api/*` 业务接口；简历可如实写「多租户隔离（JWT + 行级过滤）」。
+
+### 13.6 演示数据与真实数据在看板上不可区分
+
+**简历声明**：以演示环境 URL 作为「已部署上线」的能力证明
+
+**实测现状**：`scripts/demo/seed.ts` 写入的数据以 `raw_payload->>'demo' = 'true'` 标记（`--reset` 依赖该标记回滚），但看板前端未展示该标记，访问者无法分辨哪些是种子数据。
+
+- [ ] dashboard 对 `demo=true` 的线索显示「演示数据」角标
+- [ ] 或在 DEPLOY.md / 演示说明中明确「8090 全部为演示数据」
+
+### 13.7 其他遗留（沿用既有记录）
+
+- [ ] 生产 8091 阿里云安全组放行（见 §12.6）
+- [ ] PM2 日志轮转 `pm2 install pm2-logrotate`（见 §12.6）
+- [ ] `apps/mailer` `tsc --noEmit` 约 20 个历史类型错误（见 §8.5 遗留）
+- [ ] `rakuto.store` 在 Resend Dashboard 完成 DNS 验证后 warmup 才能真实发信（见 §8.4）
+- [ ] 头部摘要「P3 ⬜」与 §四「P3 ✅ 完成 —— 2026-09-10」矛盾，统一为已完成
+
