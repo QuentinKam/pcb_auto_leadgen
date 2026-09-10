@@ -12,6 +12,31 @@ import type { ProfileResult, ContentFormat, ContentVariant } from '../content/ty
 export const contentRoutes = new Hono();
 
 /**
+ * GET /content/profile/:companyId
+ * 只读查询已存画像：不存在返回 404，不调用 LLM
+ * （POST 同路径才是"生成/重算"，前端切公司必须走 GET，否则每次点击都在烧 token）
+ */
+contentRoutes.get('/profile/:companyId', async (c) => {
+  const companyId = c.req.param('companyId');
+  const tenantId = c.req.header('X-Tenant-Id');
+  if (!tenantId) {
+    return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
+  }
+
+  const [profile] = await db
+    .select()
+    .from(profiles)
+    .where(and(eq(profiles.companyId, companyId), eq(profiles.tenantId, tenantId)))
+    .limit(1);
+
+  if (!profile) {
+    return c.json({ error: 'Profile not found', code: 'NOT_FOUND' }, 404);
+  }
+
+  return c.json(profile);
+});
+
+/**
  * POST /content/profile/:companyId
  * 生成客户画像：从公司描述提取业务摘要、产品类型、痛点、采购信号
  * 写入 profiles 表

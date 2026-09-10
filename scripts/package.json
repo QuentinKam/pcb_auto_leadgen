@@ -1,0 +1,16 @@
+{
+  "name": "@pcb/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "运维与演示脚本（不参与 turbo build）",
+  "scripts": {
+    "demo:seed": "bun run demo/seed.ts",
+    "demo:reset": "bun run demo/seed.ts --reset",
+    "demo:check": "bun run demo/check.ts"
+  },
+  "dependencies": {
+    "@pcb/db": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  }
+}

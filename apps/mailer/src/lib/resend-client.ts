@@ -3,6 +3,8 @@ import * as crypto from 'node:crypto';
 import { Resend } from 'resend';
 import { injectUnsubscribeFooter } from './unsubscribe.ts';
 
+const RESEND_TAG_SAFE_RE = /[^a-zA-Z0-9_-]/g;
+
 export type ResendSendParams = {
   from: string;
   to: string[];
@@ -57,7 +59,10 @@ class ResendClient {
       subject: params.subject,
       reply_to: params.replyTo ?? process.env.DEFAULT_REPLY_TO ?? undefined,
       headers: params.headers ?? undefined,
-      tags: params.tags ?? undefined,
+      tags: params.tags?.map((t) => ({
+        name: String(t.name).replace(RESEND_TAG_SAFE_RE, '-'),
+        value: String(t.value).replace(RESEND_TAG_SAFE_RE, '-'),
+      })),
     };
     if (withUnsub.html) payload.html = withUnsub.html;
     if (withUnsub.text) payload.text = withUnsub.text;
@@ -65,9 +70,21 @@ class ResendClient {
     if (this.client) {
       try {
         const res = await this.client.emails.send(payload as never);
+        const { data, error } = res as {
+          data?: { id?: string } | null;
+          error?: { message?: string } | null;
+        };
+        if (error) {
+          return {
+            success: false,
+            messageId: null,
+            errorMessage: error.message ?? 'Unknown Resend error',
+            usedMock: false,
+          };
+        }
         return {
           success: true,
-          messageId: (res as { id?: string } | null)?.id ?? null,
+          messageId: data?.id ?? null,
           errorMessage: null,
           usedMock: false,
         };

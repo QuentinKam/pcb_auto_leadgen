@@ -65,7 +65,6 @@ async function processSend(
     const reason = !domainQuota.allowed
       ? `Domain daily quota exceeded (${domainQuota.count}/${domainQuota.limit})`
       : `From email daily quota exceeded (${fromQuota.count}/${fromQuota.limit})`;
-    await rollbackQuota(tenantId, record.sendingDomain, record.fromEmail);
     await db
       .update(emailSends)
       .set({ status: 'quota_exceeded', lastError: reason, updatedAt: new Date() })
@@ -118,7 +117,6 @@ async function processSend(
       return { messageId: result.messageId, status: result.usedMock ? 'sent_mock' : 'sent' };
     }
 
-    await rollbackQuota(tenantId, record.sendingDomain, record.fromEmail);
     await db
       .update(emailSends)
       .set({
@@ -129,6 +127,7 @@ async function processSend(
       .where(eq(emailSends.id, record.id));
     throw new Error(result.errorMessage ?? 'Send failed');
   } catch (err) {
+    // 配额在进入 try 前 consume，任何失败统一在这里回滚一次（避免双重 rollback 把计数器打成负数）
     await rollbackQuota(tenantId, record.sendingDomain, record.fromEmail);
     const msg = err instanceof Error ? err.message : String(err);
     await db

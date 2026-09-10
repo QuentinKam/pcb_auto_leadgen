@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { emailCampaigns, emailSends } from '@pcb/db/schema';
+import { companies, contacts, emailCampaigns, emailSends } from '@pcb/db/schema';
 import { type Job, Queue, Worker } from 'bullmq';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../lib/db.ts';
@@ -201,6 +201,71 @@ async function processDailyWarmup(job: Job<WarmupDailyJobPayload>): Promise<{
   return { planned: target, dispatched, seedPool, domains };
 }
 
+// email_sends.company_id/contact_id 是 NOT NULL 且 FK cascade，warmup 发送复用
+// 一个占位公司 + 按种子邮箱 find-or-create 的占位联系人。
+// 占位公司的名称/网站可通过 env 配置（WARMUP_COMPANY_NAME / WARMUP_COMPANY_WEBSITE），
+// 未配置时回退为带域名后缀的默认值；联系人名前缀用 WARMUP_CONTACT_NAME_PREFIX。
+const WARMUP_COMPANY_NAME = process.env.WARMUP_COMPANY_NAME?.trim() || null;
+const WARMUP_COMPANY_WEBSITE = process.env.WARMUP_COMPANY_WEBSITE?.trim() || null;
+const WARMUP_CONTACT_NAME_PREFIX =
+  process.env.WARMUP_CONTACT_NAME_PREFIX?.trim() || 'Warmup Seed';
+
+async function ensureWarmupCompanyAndContact(
+  tenantId: string,
+  domain: string,
+  seedEmail: string
+): Promise<{ companyId: string; contactId: string }> {
+  const companyName = WARMUP_COMPANY_NAME ?? `Warmup Test Company (${domain})`;
+  const companyWebsite = WARMUP_COMPANY_WEBSITE ?? domain;
+  const selectCompany = () =>
+    db
+      .select({ id: companies.id })
+      .from(companies)
+      .where(and(eq(companies.tenantId, tenantId), eq(companies.website, companyWebsite)))
+      .limit(1);
+  let companyRows = await selectCompany();
+  if (companyRows.length === 0) {
+    await db
+      .insert(companies)
+      .values({
+        tenantId,
+        name: companyName,
+        website: companyWebsite,
+        description: 'Warmup 专用测试公司记录，非真实线索',
+      })
+      .onConflictDoNothing();
+    companyRows = await selectCompany();
+  }
+  const companyId = (companyRows[0] as { id: string } | undefined)?.id;
+  if (!companyId) throw new Error(`Warmup test company create failed domain=${domain}`);
+
+  const selectContact = () =>
+    db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), eq(contacts.email, seedEmail)))
+      .limit(1);
+  let contactRows = await selectContact();
+  if (contactRows.length === 0) {
+    await db
+      .insert(contacts)
+      .values({
+        tenantId,
+        companyId,
+        email: seedEmail,
+        name: `${WARMUP_CONTACT_NAME_PREFIX} ${seedEmail.split('@')[0]}`,
+        emailVerified: 'unknown',
+        active: true,
+      })
+      .onConflictDoNothing();
+    contactRows = await selectContact();
+  }
+  const contactId = (contactRows[0] as { id: string } | undefined)?.id;
+  if (!contactId) throw new Error(`Warmup test contact create failed email=${seedEmail}`);
+
+  return { companyId, contactId };
+}
+
 async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
   messageId: string | null;
   status: string;
@@ -211,7 +276,6 @@ async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
   const quota = await checkAndConsumeDomainQuota(tenantId, domain);
   const fromQuota = await checkAndConsumeFromEmailQuota(tenantId, fromEmail);
   if (!quota.allowed || !fromQuota.allowed) {
-    await rollbackQuota(tenantId, domain, fromEmail);
     throw new Error(
       `Warmup quota exceeded domain=${quota.count}/${quota.limit} from=${fromQuota.count}/${fromQuota.limit}`
     );
@@ -219,6 +283,7 @@ async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
 
   try {
     const campaignId = await ensureWarmupCampaign(tenantId);
+    const { companyId, contactId } = await ensureWarmupCompanyAndContact(tenantId, domain, seedEmail);
     const { subject, text } = await buildWarmupBody(bodyVariant);
     const fromStr = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 
@@ -234,11 +299,13 @@ async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
       .values({
         tenantId,
         campaignId,
+        companyId,
+        contactId,
         fromEmail,
         fromName,
         sendingDomain: domain,
         toEmail: seedEmail,
-        toName: `Warmup Seed ${seedEmail.split('@')[0]}`,
+        toName: `${WARMUP_CONTACT_NAME_PREFIX} ${seedEmail.split('@')[0]}`,
         subject,
         bodySnapshot: text,
         variant: bodyVariant % 2 === 0 ? 'A' : 'B',
@@ -279,7 +346,6 @@ async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
       return { messageId: result.messageId, status: result.usedMock ? 'sent_mock' : 'sent' };
     }
 
-    await rollbackQuota(tenantId, domain, fromEmail);
     await db
       .update(emailSends)
       .set({
@@ -290,6 +356,7 @@ async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
       .where(eq(emailSends.id, sendId));
     throw new Error(result.errorMessage ?? 'warmup send failed');
   } catch (err) {
+    // 配额在函数开头 consume，任何失败统一在这里回滚一次（避免双重 rollback 把计数器打成负数）
     await rollbackQuota(tenantId, domain, fromEmail);
     throw err;
   }

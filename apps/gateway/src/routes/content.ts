@@ -18,6 +18,27 @@ function getForwardHeaders(c: Parameters<Parameters<Hono['use']>[1]>[0]) {
   return headers;
 }
 
+contentRoutes.get('/profile/:companyId', async (c) => {
+  const companyId = c.req.param('companyId');
+  const headers = getForwardHeaders(c as never);
+
+  try {
+    const res = await fetch(`${SCORER_URL}/content/profile/${companyId}`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    const body = await res.text();
+    return c.body(body, res.status as never, Object.fromEntries(res.headers.entries()));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('timed out')) {
+      return c.json({ error: 'Scorer timeout', code: 'SCORER_TIMEOUT' }, 504);
+    }
+    return c.json({ error: `Scorer unavailable: ${msg}`, code: 'SCORER_UNAVAILABLE' }, 502);
+  }
+});
+
 contentRoutes.post('/profile/:companyId', async (c) => {
   const companyId = c.req.param('companyId');
   const headers = getForwardHeaders(c as never);

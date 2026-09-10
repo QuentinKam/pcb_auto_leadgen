@@ -1,13 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  api,
-  mailApi,
-  contactsApi,
-  type ContentDraft,
-  type ContentFormat,
-  type ProfileResponse,
-} from '@/lib/api';
+import { api, mailApi, contactsApi, type ContentDraft, type ContentFormat } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -88,14 +81,8 @@ export function ContentReviewPage() {
     refetch: refetchProfile,
   } = useQuery({
     queryKey: ['profile', selectedCompanyId],
-    queryFn: async () => {
-      try {
-        return await api.generateProfile(selectedCompanyId!);
-      } catch (err) {
-        console.warn('generate profile failed', err);
-        return null as ProfileResponse | null;
-      }
-    },
+    // 只读查询：切公司不再触发 LLM 生成，避免演示/使用时每次点击都等待十几秒
+    queryFn: () => api.getProfile(selectedCompanyId!),
     enabled: !!selectedCompanyId,
     staleTime: 5 * 60 * 1000,
   });

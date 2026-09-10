@@ -147,6 +147,16 @@ export const api = {
     });
   },
 
+  /** 只读画像：不存在返回 null，不触发 LLM */
+  async getProfile(companyId: string): Promise<ProfileResponse | null> {
+    try {
+      return await request<ProfileResponse>(`/api/content/profile/${companyId}`);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('HTTP 404')) return null;
+      throw err;
+    }
+  },
+
   async generateContent(params: {
     companyId: string;
     contactId?: string;

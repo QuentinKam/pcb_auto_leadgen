@@ -35,7 +35,7 @@ async function incrementAndGet(
         count = Number(firstRow[1] ?? 0);
       }
     }
-    return { count, allowed: count > 0 ? count <= max : false };
+    return { count, allowed: count <= max };
   } catch (err) {
     const inMemCount = (inMemoryCounters.get(key) ?? 0) + 1;
     inMemoryCounters.set(key, inMemCount);

@@ -10,7 +10,10 @@
     "build": "turbo build",
     "test": "turbo test",
     "lint": "biome check .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "demo:seed": "bun run scripts/demo/seed.ts",
+    "demo:reset": "bun run scripts/demo/seed.ts --reset",
+    "demo:check": "bun run scripts/demo/check.ts"
   },
   "devDependencies": {
     "turbo": "^2.3.0",

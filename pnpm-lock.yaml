@@ -482,6 +482,15 @@ importers:
         specifier: latest
         version: 1.4.2
 
+  scripts:
+    dependencies:
+      '@pcb/db':
+        specifier: workspace:*
+        version: link:../packages/db
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(bun-types@1.4.2)(pg@8.23.0)
+
 packages:
 
   '@biomejs/biome@1.9.4':

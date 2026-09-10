@@ -308,11 +308,24 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
   - 顺带修：apps/scorer/.env 补 `FACTS_JSON_PATH=/Users/quentingam/Documents/aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json`，跨项目 facts.json 读不到 → 42/42 全绿
 - [x] @pcb/gateway：17/17（路由 handler 单测）
 - [x] @pcb/mailer / @pcb/dashboard：暂无 .test.ts，package.json 改 `bun test --pass-with-no-tests`（连字符，下划线参数无效）
+- [x] 2026-09-10 补：@pcb/mailer 新增 resend-client.test.ts 3 用例（SDK {data,error} 形态映射 + tag 清洗），全绿
 
 ### 8.3 DB 迁移 0002 ✅
 - [x] PostgreSQL 5432 运行中（pg_isready OK），Redis 6379 运行中（PONG OK）
 - [x] `pnpm --filter @pcb/db migrate` 跑 0002_complete_dust.sql 成功
 - [x] 结果：12/12 张表就位（tenants / users / keywords / companies / contacts / lead_scores / audit_logs + profiles / content_drafts + email_campaigns / email_sends / email_events）
+
+### 8.4 Warmup 发信问题排查修复（2026-09-10）✅
+- [x] Bug 1：email_sends.company_id / contact_id NOT NULL，warmup 无 company/contact → 36 个任务 insert 全挂。修：schema 改 nullable + drizzle-kit generate 0003_medical_night_thrasher.sql + migrate 成功
+- [x] Bug 2：resend-client.ts 未处理 Resend SDK v4 的 `{ data, error }` 返回形态，API 报错（403 域名未验证）被记成 status=sent。修：error 分支透出 errorMessage，TDD 3 用例全绿
+- [x] Bug 3：warmup tag `{name:'domain', value:'rakuto.store'}` 含点号 → Resend Tags ASCII 校验失败。修：resend-client.send() 出口统一清洗 tag 为 `[A-Za-z0-9_-]`（点→`-`），带测试用例
+- [x] 修复后 trigger 端到端验证：DB 正确记录 status=failed + last_error=403 rakuto.store not verified → **待用户在 Resend Dashboard 完成 rakuto.store 域名 DNS 验证后，warmup 即可真实发信**
+
+### 8.5 Warmup 占位 company/contact 改为 env 可配置（2026-09-10）✅
+- [x] 恢复 email_sends.company_id/contact_id NOT NULL（0004_spicy_rocket_racer.sql 已迁移），warmup 发送改为挂占位记录：ensureWarmupCompanyAndContact 按 website find-or-create 占位公司 + 按种子邮箱 find-or-create 占位联系人
+- [x] 新增 3 个 env 配置：WARMUP_COMPANY_NAME（占位公司名，默认 "Warmup Test Company (<域名>)"）+ WARMUP_COMPANY_WEBSITE（占位公司网站=find-or-create 识别键，默认取发送域名）+ WARMUP_CONTACT_NAME_PREFIX（联系人名前缀，默认 "Warmup Seed"），已写入 .env / .env.example
+- [x] 端到端验证：trigger 后 companies / contacts 表正确生成占位记录，email_sends.company_id/contact_id 正确关联（发送仍失败仅因 rakuto.store 未在 Resend 验证）
+- ⬜ 遗留（未修，超出本次范围）：apps/mailer `tsc --noEmit` 有约 20 个历史类型错误（warmupConfig.plan 私有被 routes/index 引用、routes/warmup.ts SUM 结果 `{}` 类型等）；bun build 不做类型检查所以之前"build 全绿"未暴露，运行时不受影响
 
 ---
 
@@ -336,3 +349,33 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - [x] LinkedIn 私信 ≤ 120 词，口语化，无硬广（linkedin-dm.ts）
 - [x] dashboard 审核页可批准/驳回/编辑 subject+body/标记已发送（ContentReviewPage）
 - [x] 行业博客模板能基于 PCB 知识库生成英文长文（industry-blog.ts + facts-loader top 10 注入）
+
+---
+
+## 十一、客户演示套件（2026-09-10）✅
+
+> 目标：把项目**从容优雅**地演示给三类对象（潜在买家 / 终端国外客户 / 投资人评审）。
+> 现场原则：不空屏、不等生成、不赌网络。
+
+### 11.1 演示前必修的三个硬伤（本次实测发现）
+- [x] **租户不一致（致命）**：`apps/dashboard/.env` 的 `VITE_TENANT_ID=d7ac80b9-…` 与库里数据租户 `00000000-…` 不一致，且 `VITE_USER_ID=12aaa8ac-…` 在 users 表不存在 → **看板四个 Tab 全空 + 人工覆盖报错**。修：两个 ID 对齐为 DB 种子租户/用户（`apps/dashboard/.env` + `.env.example` 同步加注释说明）
+- [x] **点公司即触发 LLM（体验杀手）**：ContentReviewPage 的画像 `useQuery` 调的是 `POST /content/profile/:companyId`，而该接口**每次都真调 LLM**（非幂等），切一次公司等十几秒，失败则显示"请先点击重新画像"。修：新增 `GET /content/profile/:companyId` 只读接口（scorer + gateway），前端改用 `api.getProfile()`，`重新画像` 按钮保留 POST
+- [x] **「批准并发信」直接 500（高光环节翻车）**：`apps/gateway/src/routes/contacts.ts` 用了不存在的 `isNull(contacts.email).not()`（Drizzle 无 `.not()`）→ `first-by-company` 抛 `TypeError`。修：改用 `isNotNull(contacts.email)`（2 处），真实发信链路实测通过（status=sent + Resend message id）
+
+### 11.2 演示数据与脚本
+- [x] `scripts/` 升级为工作区包（`@pcb/scripts`，pnpm-workspace.yaml 加 `scripts`）→ 根目录脚本可解析 `@pcb/db`
+- [x] `scripts/demo/dataset.ts`：12 家欧美 PCB 潜在客户静态数据集（行业/规模/国别/描述/痛点/画像/开发信 A-B 文案/LinkedIn 私信），确定性生成、离线可用
+- [x] `scripts/demo/seed.ts`：写入 12 公司 + 12 联系人 + 14 打分（含 2 条人工覆盖 + 审计日志）+ 12 画像 + 14 草稿 + 1 正式活动 + 1 演示 warmup 活动 + 79 条发送记录 + 事件明细；`--reset` 精确回滚、`--purge-failed` 清历史失败记录、`--recipient=` 换收件人
+- [x] **发信零外泄设计**：演示联系人邮箱全部 = `DEMO_RECIPIENT_EMAIL` 的 `+<公司标识>` 别名 → 现场任意公司点「批准并发信」都只进演示者自己邮箱
+- [x] `scripts/demo/check.ts`：14 项演示就绪自检（4 服务存活 / 租户一致性 / 四 Tab 数据 / 真实发信前置），FAIL 则退出码 1
+- [x] 根目录 `demo.command`（双击）：环境检查 → 重写演示数据 → 补齐未启动服务（已在跑则跳过）→ 等待就绪 → 自检 → 打开看板 → 打印演示顺序
+- [x] 根 package.json 加 `demo:seed` / `demo:reset` / `demo:check`
+- [x] `apps/mailer/.env(.example)` 新增 `DEMO_RECIPIENT_EMAIL`（含注释）
+- [x] `DEMO_GUIDE.md`：四幕通用主线 + 三套剧本（① 卖产品给同行 ② 展示给终端客户 ③ 投资人/OPC 评审）+ 每套的 30 秒开场 / 分幕口播 / ROI 收尾 / 高频 Q&A + 排障救场表（含"录屏兜底"）+ 演示后收尾
+
+### 11.3 验证结果（2026-09-10）
+- [x] `pnpm demo:check` 14/14 全绿：线索 12 条（A=4 B=5 C=3）· 首批公司画像秒开 · 4 篇 A/B 草稿 · 发送打开率 68% / 回复 3 / 退信率 3.6% · reputation 100/100
+- [x] 真实发信端到端实测通过：`enqueueSingle` → send-worker → Resend → `status=sent` + 真实 message id
+- [x] `demo:reset` 回滚实测：演示数据归零（companies 13→1、drafts 14→0），真实 warmup 记录与占位公司不受影响
+- [x] 回归：gateway 17/17 + scorer 42/42 测试通过；`@pcb/dashboard`（含 tsc）/ gateway / scorer 三个 build 全绿；`scripts/` biome 检查零错误
+

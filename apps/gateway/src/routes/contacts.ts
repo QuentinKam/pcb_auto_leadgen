@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { contacts, db } from '@pcb/db';
 
 export const contactsRoutes = new Hono();
@@ -16,7 +16,7 @@ contactsRoutes.get('/', async (c) => {
   const wheres = [eq(contacts.tenantId, tenantId), eq(contacts.active, true)];
   if (companyId) wheres.push(eq(contacts.companyId, companyId));
   const hasEmail = c.req.query('hasEmail');
-  if (hasEmail === 'true') wheres.push(isNull(contacts.email).not());
+  if (hasEmail === 'true') wheres.push(isNotNull(contacts.email));
 
   const rows = await db
     .select()
@@ -58,7 +58,7 @@ contactsRoutes.get('/first-by-company/:companyId', async (c) => {
         eq(contacts.tenantId, tenantId),
         eq(contacts.companyId, companyId),
         eq(contacts.active, true),
-        isNull(contacts.email).not()
+        isNotNull(contacts.email)
       )
     )
     .orderBy(desc(contacts.createdAt))
