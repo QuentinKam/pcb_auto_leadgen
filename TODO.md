@@ -316,7 +316,19 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 
 ---
 
-## 九、验收标准（P1+P2 ✅ 通过）
+## 九、运维脚本 & 一键启动（2026-09-10）
+
+### 优先级 A：端到端联调一键化
+- [x] 根目录 `start.command`（双击可运行，macOS 专用）：前置校验 PG+Redis+pnpm+bun → 5 个 Terminal Tab 并行启动 gateway/scorer/mailer:dev/mailer:worker/dashboard → 自动打开 http://localhost:5173；异常时有明确修复指引
+- [x] `scripts/health-check.sh`：10 项健康检查（PG/Redis/4 服务 HTTP 200 + /warmup/status reputation 色阶 + seedPool 预警），jq 可读时打印关键字段，非 jq 时降级原始 JSON
+
+### 优先级 B：Resend warmup 启动辅助
+- [x] 根目录 `warmup-start.command`：前置读取 mailer/.env 逐字段校验（RESEND_KEY 占位符识别 / DEFAULT_SENDING_DOMAIN=your-domain 拦截 / FROM_COUNT / SEED_COUNT<10 提醒）→ 检查 mailer:3003 已就绪 → 新开 Tab 启动 warmup-worker → 立即调用 /warmup/status 打印今日目标 + reputation + seedPool
+- [x] warmup 手动触发 curl 模板嵌在脚本末尾输出（countOverride=5 小规模试跑 + /plan + /recent）
+
+---
+
+## 十、验收标准（P1+P2 ✅ 通过）
 
 - [x] 客户画像 Agent 能提取产品类型、客户类型、痛点（profile.ts）
 - [x] 开发信 A/B 版本有明显差异，且引用客户具体业务 + 事实数据（cold-email.ts + facts-loader）

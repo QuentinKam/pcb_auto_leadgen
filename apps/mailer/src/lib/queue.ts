@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 import { redis } from './redis.ts';
 
-export const SEND_QUEUE_NAME = 'pcb:mailer:sends';
+export const SEND_QUEUE_NAME = 'pcb-mailer-sends';
 
 export const sendQueue = new Queue(SEND_QUEUE_NAME, {
   connection: redis,

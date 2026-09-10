@@ -91,9 +91,23 @@ function loadSeedEmailsFromEnv(): string[] {
   const raw = process.env.WARMUP_SEED_EMAILS ?? '[]';
   try {
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((e) => String(e ?? '').trim()).filter((e) => /.+@.+\..+/.test(e));
-  } catch {
+    if (!Array.isArray(parsed)) {
+      console.warn('[warmup-config] WARMUP_SEED_EMAILS 不是数组，回退为空');
+      return [];
+    }
+    const filtered = parsed
+      .map((e) => String(e ?? '').trim().toLowerCase())
+      .filter((e) => /.+@.+\..+/.test(e));
+    const deduped = Array.from(new Set(filtered));
+    const duplicates = filtered.length - deduped.length;
+    if (duplicates > 0) {
+      console.warn(
+        `[warmup-config] WARMUP_SEED_EMAILS 去重：${filtered.length} → ${deduped.length}（去掉 ${duplicates} 个重复）`
+      );
+    }
+    return deduped;
+  } catch (err) {
+    console.warn('[warmup-config] WARMUP_SEED_EMAILS JSON.parse 失败，回退为空：', (err as Error).message);
     return [];
   }
 }

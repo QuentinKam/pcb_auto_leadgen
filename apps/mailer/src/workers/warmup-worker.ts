@@ -14,7 +14,7 @@ import { type ResendSendResult, resendClient } from '../lib/resend-client.ts';
 import { senderPool } from '../lib/sender-pool.ts';
 import { warmupConfig } from '../lib/warmup-config.ts';
 
-export const WARMUP_QUEUE_NAME = 'pcb:mailer:warmup';
+export const WARMUP_QUEUE_NAME = 'pcb-mailer-warmup';
 export const WARMUP_DAILY_CRON = process.env.WARMUP_DAILY_CRON ?? '0 2 * * *';
 export const WARMUP_SEND_INTERVAL_MS = Number(process.env.WARMUP_SEND_INTERVAL_MS ?? 3000);
 const WARMUP_OPEN_RATE = Number(process.env.WARMUP_SIM_OPEN_RATE ?? 0.75);
