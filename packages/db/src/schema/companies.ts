@@ -44,7 +44,7 @@ export const companies = pgTable(
     websiteUnique: unique('companies_tenant_website_unique').on(table.tenantId, table.website),
     tenantNameIdx: index('companies_tenant_name_idx').on(table.tenantId, table.name),
     tenantIndustryIdx: index('companies_tenant_industry_idx').on(table.tenantId, table.industry),
-  }),
+  })
 );
 
 export type Company = typeof companies.$inferSelect;

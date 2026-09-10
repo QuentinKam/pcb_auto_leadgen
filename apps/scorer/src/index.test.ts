@@ -75,7 +75,8 @@ describe('scoring dimensions (unit)', () => {
 
   test('scoreKeywords: 6+ hits gets full 25', () => {
     const r = scoreKeywords({
-      description: 'We design PCB and PCBA. Our PCB assembly service covers SMT and through-hole. We accept Gerber files.',
+      description:
+        'We design PCB and PCBA. Our PCB assembly service covers SMT and through-hole. We accept Gerber files.',
       rawPayload: null,
     });
     expect(r.score).toBe(25);
@@ -173,7 +174,10 @@ describe('scoring dimensions (unit)', () => {
   });
 
   test('scoreReachability: valid email + LinkedIn gets 10', () => {
-    const r = scoreReachability({ emailVerified: 'valid', linkedinUrl: 'https://linkedin.com/in/x' });
+    const r = scoreReachability({
+      emailVerified: 'valid',
+      linkedinUrl: 'https://linkedin.com/in/x',
+    });
     expect(r.score).toBe(10);
   });
 
@@ -183,12 +187,18 @@ describe('scoring dimensions (unit)', () => {
   });
 
   test('scoreReachability: unknown email + LinkedIn gets 5', () => {
-    const r = scoreReachability({ emailVerified: 'unknown', linkedinUrl: 'https://linkedin.com/in/y' });
+    const r = scoreReachability({
+      emailVerified: 'unknown',
+      linkedinUrl: 'https://linkedin.com/in/y',
+    });
     expect(r.score).toBe(5);
   });
 
   test('scoreReachability: invalid email gets 0', () => {
-    const r = scoreReachability({ emailVerified: 'invalid', linkedinUrl: 'https://linkedin.com/in/z' });
+    const r = scoreReachability({
+      emailVerified: 'invalid',
+      linkedinUrl: 'https://linkedin.com/in/z',
+    });
     expect(r.score).toBe(0);
   });
 
@@ -213,7 +223,7 @@ describe('scoreLead aggregation', () => {
         title: 'Procurement Manager',
         emailVerified: 'valid',
         linkedinUrl: 'https://linkedin.com/in/ceo',
-      },
+      }
     );
     expect(r.score).toBe(100);
     expect(r.grade).toBe('A');
@@ -238,7 +248,7 @@ describe('scoreLead aggregation', () => {
         sizeBucket: '1-10',
         employeeCount: 5,
       },
-      { title: 'Marketing Intern', emailVerified: 'invalid', linkedinUrl: null },
+      { title: 'Marketing Intern', emailVerified: 'invalid', linkedinUrl: null }
     );
     expect(r.score).toBeLessThanOrEqual(20);
     expect(r.grade).toBe('C');
@@ -253,7 +263,7 @@ describe('scoreLead aggregation', () => {
         sizeBucket: '201-500',
         employeeCount: 250,
       },
-      { title: 'Product Manager', emailVerified: 'valid', linkedinUrl: null },
+      { title: 'Product Manager', emailVerified: 'valid', linkedinUrl: null }
     );
     // industry 15 + keywords 10 + role 10 + size 15 + reachability 7 = 57
     expect(r.score).toBe(57);
@@ -270,7 +280,7 @@ describe('scoreLead aggregation', () => {
         sizeBucket: null,
         employeeCount: null,
       },
-      { title: 'Procurement Manager', emailVerified: 'invalid', linkedinUrl: null },
+      { title: 'Procurement Manager', emailVerified: 'invalid', linkedinUrl: null }
     );
     expect(r.score).toBe(75);
     expect(r.grade).toBe('A');
@@ -314,7 +324,8 @@ describe('Scorer API (e2e)', () => {
         industry: 'hardware',
         sizeBucket: '51-200',
         employeeCount: 150,
-        description: 'We design PCB and PCBA. Our PCB assembly service covers SMT and through-hole. We accept Gerber files and BOM.',
+        description:
+          'We design PCB and PCBA. Our PCB assembly service covers SMT and through-hole. We accept Gerber files and BOM.',
       })
       .returning();
     if (!company) throw new Error('failed to insert company');

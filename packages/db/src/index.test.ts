@@ -82,10 +82,7 @@ describe('db smoke test', () => {
 
   test.serial('query back by tenant_id', async () => {
     if (!tenantId) throw new Error('previous test failed to create tenant');
-    const rows = await db
-      .select()
-      .from(companies)
-      .where(eq(companies.tenantId, tenantId));
+    const rows = await db.select().from(companies).where(eq(companies.tenantId, tenantId));
     expect(rows.length).toBe(1);
     expect(rows[0]!.name).toBe('ACME Hardware');
   });
@@ -93,10 +90,7 @@ describe('db smoke test', () => {
   test.serial('cascade delete tenant cleans up children', async () => {
     if (!tenantId) throw new Error('previous test failed to create tenant');
     await db.delete(tenants).where(eq(tenants.id, tenantId));
-    const leftoverUsers = await db
-      .select()
-      .from(users)
-      .where(eq(users.tenantId, tenantId));
+    const leftoverUsers = await db.select().from(users).where(eq(users.tenantId, tenantId));
     expect(leftoverUsers.length).toBe(0);
     // 标记已删除，让 afterAll 跳过
     tenantId = undefined;

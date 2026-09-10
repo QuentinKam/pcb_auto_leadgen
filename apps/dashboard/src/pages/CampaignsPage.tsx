@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   mailApi,
-  type MailStatsResponse,
   type WarmupStatusResponse,
   type EmailCampaignItem,
 } from '@/lib/api';
@@ -20,7 +19,10 @@ const CAMPAIGN_STATUS_LABEL: Record<string, string> = {
   cancelled: '已取消',
 };
 
-const CAMPAIGN_STATUS_VARIANT: Record<string, 'outline' | 'default' | 'gradeA' | 'gradeB' | 'gradeC'> = {
+const CAMPAIGN_STATUS_VARIANT: Record<
+  string,
+  'outline' | 'default' | 'gradeA' | 'gradeB' | 'gradeC'
+> = {
   draft: 'outline',
   running: 'default',
   paused: 'gradeB',
@@ -31,7 +33,11 @@ const CAMPAIGN_STATUS_VARIANT: Record<string, 'outline' | 'default' | 'gradeA' |
 export function CampaignsPage() {
   const [campaignPage, setCampaignPage] = useState(1);
 
-  const { data: stats, isLoading: statsLoading, error: statsError } = useQuery({
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    error: statsError,
+  } = useQuery({
     queryKey: ['mailStats'],
     queryFn: () => mailApi.getStats(),
     refetchInterval: 30_000,
@@ -45,8 +51,7 @@ export function CampaignsPage() {
 
   const { data: campaigns, isLoading: campaignsLoading } = useQuery({
     queryKey: ['campaigns', campaignPage],
-    queryFn: () =>
-      mailApi.listCampaigns({ page: campaignPage, pageSize: CAMPAIGN_PAGE_SIZE }),
+    queryFn: () => mailApi.listCampaigns({ page: campaignPage, pageSize: CAMPAIGN_PAGE_SIZE }),
   });
 
   const totalCampaigns = campaigns?.total ?? 0;
@@ -77,14 +82,20 @@ export function CampaignsPage() {
             <StatCard
               title="已送达"
               value={stats?.totalDelivered ?? 0}
-              rate={stats?.totalSent ? `${((stats.totalDelivered / stats.totalSent) * 100).toFixed(1)}%` : undefined}
+              rate={
+                stats?.totalSent
+                  ? `${((stats.totalDelivered / stats.totalSent) * 100).toFixed(1)}%`
+                  : undefined
+              }
               loading={statsLoading}
               color="text-blue-600"
             />
             <StatCard
               title="已打开"
               value={stats?.totalOpened ?? 0}
-              rate={stats?.openRate !== undefined ? `${(stats.openRate * 100).toFixed(1)}%` : undefined}
+              rate={
+                stats?.openRate !== undefined ? `${(stats.openRate * 100).toFixed(1)}%` : undefined
+              }
               loading={statsLoading}
               color="text-indigo-600"
             />
@@ -108,7 +119,11 @@ export function CampaignsPage() {
             />
             <StatCard
               title="投诉率"
-              value={stats?.complaintRate !== undefined ? `${(stats.complaintRate * 100).toFixed(2)}%` : '0%'}
+              value={
+                stats?.complaintRate !== undefined
+                  ? `${(stats.complaintRate * 100).toFixed(2)}%`
+                  : '0%'
+              }
               warning={stats && stats.complaintRate > 0.001}
               loading={statsLoading}
               color={stats && stats.complaintRate > 0.001 ? 'text-red-700' : 'text-slate-600'}
@@ -135,7 +150,9 @@ export function CampaignsPage() {
           </CardHeader>
           <CardContent>
             {campaignsLoading && (
-              <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">加载中...</p>
+              <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">
+                加载中...
+              </p>
             )}
             {!campaignsLoading && campaigns && campaigns.items.length === 0 && (
               <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">
@@ -225,7 +242,9 @@ function StatCard({
         ) : (
           <>
             <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
-            {rate && <p className="mt-0.5 text-[11px] text-[var(--color-muted-foreground)]">{rate}</p>}
+            {rate && (
+              <p className="mt-0.5 text-[11px] text-[var(--color-muted-foreground)]">{rate}</p>
+            )}
           </>
         )}
       </CardContent>
@@ -264,9 +283,7 @@ function WarmupCard({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">今日进度</CardTitle>
-          <CardDescription>
-            {warmup.sendingDomains.join(', ') || '未配置发送域名'}
-          </CardDescription>
+          <CardDescription>{warmup.sendingDomains.join(', ') || '未配置发送域名'}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-baseline justify-between">
@@ -295,9 +312,7 @@ function WarmupCard({
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">域名声誉</CardTitle>
-          <CardDescription>
-            Reputation Score（0-100）
-          </CardDescription>
+          <CardDescription>Reputation Score（0-100）</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-baseline justify-between">
@@ -372,7 +387,11 @@ function CampaignRow({ campaign }: { campaign: EmailCampaignItem }) {
       <td className="p-3">
         <div className="flex items-center gap-2">
           <span className="font-medium">{campaign.name}</span>
-          {campaign.isWarmup && <Badge variant="outline" className="text-[10px]">WARMUP</Badge>}
+          {campaign.isWarmup && (
+            <Badge variant="outline" className="text-[10px]">
+              WARMUP
+            </Badge>
+          )}
         </div>
         {campaign.description && (
           <div className="mt-0.5 text-xs text-[var(--color-muted-foreground)] truncate max-w-[200px]">

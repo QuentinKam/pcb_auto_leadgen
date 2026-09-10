@@ -27,10 +27,14 @@ const TEMPLATES: Record<ContentFormat, ContentTemplate> = {
 export function getBrandInfo(): BrandInfo {
   return {
     companyName: process.env.BRAND_COMPANY_NAME ?? 'PCB Manufacturer',
-    capabilities: (process.env.BRAND_CAPABILITIES ?? '4-32 layer PCB, HDI, Flexible PCB, PCBA').split(','),
+    capabilities: (
+      process.env.BRAND_CAPABILITIES ?? '4-32 layer PCB, HDI, Flexible PCB, PCBA'
+    ).split(','),
     certifications: (process.env.BRAND_CERTIFICATIONS ?? 'ISO9001, IATF16949, ISO13485').split(','),
     leadTime: process.env.BRAND_LEAD_TIME ?? 'Prototype: 3-7 days, Mass production: 2-4 weeks',
-    typicalIndustries: (process.env.BRAND_INDUSTRIES ?? 'Industrial, Medical, Automotive, Consumer').split(','),
+    typicalIndustries: (
+      process.env.BRAND_INDUSTRIES ?? 'Industrial, Medical, Automotive, Consumer'
+    ).split(','),
   };
 }
 
@@ -44,7 +48,7 @@ export function getBrandInfo(): BrandInfo {
 export async function generateContent(
   ctx: TemplateContext,
   format: ContentFormat,
-  variant: ContentVariant,
+  variant: ContentVariant
 ): Promise<Omit<ContentResult, 'id' | 'status'>> {
   const template = TEMPLATES[format];
   if (!template) {
@@ -57,7 +61,10 @@ export async function generateContent(
       { role: 'system', content: system },
       { role: 'user', content: user },
     ],
-    { temperature: variant === 'A' ? 0.5 : 0.6, maxTokens: format === 'industry_blog' ? 3000 : 1500 },
+    {
+      temperature: variant === 'A' ? 0.5 : 0.6,
+      maxTokens: format === 'industry_blog' ? 3000 : 1500,
+    }
   );
 
   const parsed = template.parseOutput(raw);
@@ -77,7 +84,7 @@ export async function generateContent(
  */
 export async function generateContentAB(
   ctx: TemplateContext,
-  format: ContentFormat,
+  format: ContentFormat
 ): Promise<Array<Omit<ContentResult, 'id' | 'status'>>> {
   const [a, b] = await Promise.all([
     generateContent(ctx, format, 'A'),

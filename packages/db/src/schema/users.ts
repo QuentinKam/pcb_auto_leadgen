@@ -24,7 +24,7 @@ export const users = pgTable(
       foreignColumns: [tenants.id],
       name: 'users_tenant_id_fk',
     }).onDelete('cascade'),
-  }),
+  })
 );
 
 export type User = typeof users.$inferSelect;

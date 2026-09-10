@@ -56,19 +56,16 @@ export const leadScores = pgTable(
       foreignColumns: [contacts.id],
       name: 'lead_scores_contact_id_fk',
     }).onDelete('set null'),
-    tenantCompanyIdx: index('lead_scores_tenant_company_idx').on(
-      table.tenantId,
-      table.companyId,
-    ),
+    tenantCompanyIdx: index('lead_scores_tenant_company_idx').on(table.tenantId, table.companyId),
     tenantGradeIdx: index('lead_scores_tenant_grade_idx').on(
       table.tenantId,
       table.finalGrade,
-      table.createdAt,
+      table.createdAt
     ),
     latestPerCompanyIdx: uniqueIndex('lead_scores_latest_per_company_idx')
       .on(table.tenantId, table.companyId)
       .where(sql`${table.overriddenBy} IS NULL`), // 简化：实际 latest 用窗口函数查
-  }),
+  })
 );
 
 export type LeadScore = typeof leadScores.$inferSelect;

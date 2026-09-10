@@ -79,22 +79,20 @@ export const emailSends = pgTable(
     tenantStatusIdx: index('email_sends_tenant_status_idx').on(
       table.tenantId,
       table.status,
-      table.createdAt,
+      table.createdAt
     ),
     tenantDomainIdx: index('email_sends_tenant_domain_idx').on(
       table.tenantId,
       table.sendingDomain,
-      table.createdAt,
+      table.createdAt
     ),
     tenantFromEmailIdx: index('email_sends_tenant_from_email_idx').on(
       table.tenantId,
       table.fromEmail,
-      table.createdAt,
+      table.createdAt
     ),
-    resendMessageIdIdx: index('email_sends_resend_message_id_idx').on(
-      table.resendMessageId,
-    ),
-  }),
+    resendMessageIdIdx: index('email_sends_resend_message_id_idx').on(table.resendMessageId),
+  })
 );
 
 export type EmailSend = typeof emailSends.$inferSelect;

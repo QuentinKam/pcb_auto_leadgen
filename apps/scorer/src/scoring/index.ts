@@ -34,8 +34,11 @@ export interface LeadScoreResult {
  *   industry 30 + pcb_keywords 25 + role 20 + size 15 + reachability 10
  */
 export function scoreLead(
-  company: Pick<Company, 'industry' | 'description' | 'rawPayload' | 'sizeBucket' | 'employeeCount'>,
-  contact: Pick<Contact, 'title' | 'emailVerified' | 'linkedinUrl'> | null,
+  company: Pick<
+    Company,
+    'industry' | 'description' | 'rawPayload' | 'sizeBucket' | 'employeeCount'
+  >,
+  contact: Pick<Contact, 'title' | 'emailVerified' | 'linkedinUrl'> | null
 ): LeadScoreResult {
   const industry = scoreIndustry(company);
   const keywords = scoreKeywords(company);
@@ -51,8 +54,7 @@ export function scoreLead(
     reachability: reachability.score,
   };
 
-  const totalScore =
-    industry.score + keywords.score + role.score + size.score + reachability.score;
+  const totalScore = industry.score + keywords.score + role.score + size.score + reachability.score;
 
   const grade: 'A' | 'B' | 'C' = totalScore >= 75 ? 'A' : totalScore >= 50 ? 'B' : 'C';
 

@@ -40,9 +40,10 @@ export interface KeywordScoreResult {
   reason: string;
 }
 
-export function scoreKeywords(
-  company: { description?: string | null; rawPayload?: unknown },
-): KeywordScoreResult {
+export function scoreKeywords(company: {
+  description?: string | null;
+  rawPayload?: unknown;
+}): KeywordScoreResult {
   // 拼接所有可扫描文本
   const texts: string[] = [];
   if (company.description) texts.push(company.description);
@@ -78,7 +79,8 @@ export function scoreKeywords(
     const lower = kw.toLowerCase();
     let idx = haystack.indexOf(lower);
     let count = 0;
-    while (idx !== -1 && count < 3) { // 单个词最多计 3 次
+    while (idx !== -1 && count < 3) {
+      // 单个词最多计 3 次
       count++;
       idx = haystack.indexOf(lower, idx + lower.length);
     }

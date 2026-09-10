@@ -1,4 +1,12 @@
-import { pgTable, uuid, varchar, timestamp, integer, boolean, foreignKey } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  varchar,
+  timestamp,
+  integer,
+  boolean,
+  foreignKey,
+} from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.ts';
 
 /**
@@ -25,7 +33,7 @@ export const keywords = pgTable(
       foreignColumns: [tenants.id],
       name: 'keywords_tenant_id_fk',
     }).onDelete('cascade'),
-  }),
+  })
 );
 
 export type Keyword = typeof keywords.$inferSelect;

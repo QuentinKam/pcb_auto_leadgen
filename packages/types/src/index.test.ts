@@ -23,9 +23,7 @@ describe('zod schemas parse valid input', () => {
   });
 
   test('tenantCreateSchema rejects bad slug', () => {
-    expect(() =>
-      tenantCreateSchema.parse({ name: 'x', slug: 'UPPER Case' }),
-    ).toThrow();
+    expect(() => tenantCreateSchema.parse({ name: 'x', slug: 'UPPER Case' })).toThrow();
   });
 
   test('userCreateSchema accepts valid email', () => {
@@ -43,7 +41,7 @@ describe('zod schemas parse valid input', () => {
         tenantId: crypto.randomUUID(),
         email: 'not-an-email',
         name: 'Alice',
-      }),
+      })
     ).toThrow();
   });
 
@@ -75,7 +73,7 @@ describe('zod schemas parse valid input', () => {
         tenantId: crypto.randomUUID(),
         name: 'x',
         website: 'not-a-url',
-      }),
+      })
     ).toThrow();
   });
 
@@ -123,7 +121,7 @@ describe('zod schemas parse valid input', () => {
           size: 15,
           reachability: 10,
         },
-      }),
+      })
     ).toThrow();
   });
 
@@ -135,14 +133,12 @@ describe('zod schemas parse valid input', () => {
         role: 0,
         size: 0,
         reachability: 0,
-      }),
+      })
     ).toThrow();
   });
 
   test('leadScoreOverrideSchema requires reason', () => {
-    expect(() =>
-      leadScoreOverrideSchema.parse({ finalGrade: 'A' }),
-    ).toThrow(); // 缺 overrideReason
+    expect(() => leadScoreOverrideSchema.parse({ finalGrade: 'A' })).toThrow(); // 缺 overrideReason
   });
 
   test('leadScoreListQuerySchema coerces page string to number', () => {
@@ -161,9 +157,7 @@ describe('zod schemas parse valid input', () => {
   });
 
   test('leadScoreListQuerySchema caps pageSize at 100', () => {
-    expect(() =>
-      leadScoreListQuerySchema.parse({ pageSize: '500' }),
-    ).toThrow();
+    expect(() => leadScoreListQuerySchema.parse({ pageSize: '500' })).toThrow();
   });
 });
 
@@ -179,8 +173,6 @@ describe('listResponseSchema generic helper', () => {
     const parsed = schema.parse(valid);
     expect(parsed.total).toBe(0);
 
-    expect(() =>
-      schema.parse({ data: [], total: -1, page: 1, pageSize: 20 }),
-    ).toThrow(); // total < 0
+    expect(() => schema.parse({ data: [], total: -1, page: 1, pageSize: 20 })).toThrow(); // total < 0
   });
 });

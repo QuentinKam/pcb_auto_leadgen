@@ -26,7 +26,7 @@ describe('facts-loader', () => {
         painPoints: ['prototype lead time', 'hdi density'],
         industry: 'consumer electronics',
       },
-      { topN: 5, format: 'cold_email' },
+      { topN: 5, format: 'cold_email' }
     );
     expect(facts.length).toBeGreaterThanOrEqual(1);
     expect(facts.length).toBeLessThanOrEqual(5);
@@ -40,7 +40,7 @@ describe('facts-loader', () => {
         painPoints: ['AEC-Q reliability', 'high Tg material'],
         industry: 'automotive',
       },
-      { topN: 5, format: 'cold_email' },
+      { topN: 5, format: 'cold_email' }
     );
     expect(facts.length).toBeGreaterThanOrEqual(1);
     const text = facts.map((f) => f.claim.toLowerCase()).join(' ');
@@ -57,19 +57,19 @@ describe('facts-loader', () => {
   test('matchRelevantFacts respects format caps: cold_email <=5, linkedin_dm <=3, industry_blog <=10', async () => {
     const cold = await matchRelevantFacts(
       { productTypes: ['x'], customerType: 'industrial_equipment', painPoints: [], industry: null },
-      { topN: 10, format: 'cold_email' },
+      { topN: 10, format: 'cold_email' }
     );
     expect(cold.length).toBeLessThanOrEqual(5);
 
     const dm = await matchRelevantFacts(
       { productTypes: ['x'], customerType: 'industrial_equipment', painPoints: [], industry: null },
-      { topN: 10, format: 'linkedin_dm' },
+      { topN: 10, format: 'linkedin_dm' }
     );
     expect(dm.length).toBeLessThanOrEqual(3);
 
     const blog = await matchRelevantFacts(
       { productTypes: ['x'], customerType: 'industrial_equipment', painPoints: [], industry: null },
-      { topN: 20, format: 'industry_blog' },
+      { topN: 20, format: 'industry_blog' }
     );
     expect(blog.length).toBeLessThanOrEqual(10);
   });
@@ -77,7 +77,7 @@ describe('facts-loader', () => {
   test('matchRelevantFacts returns [] when context is empty but format still works', async () => {
     const facts = await matchRelevantFacts(
       { productTypes: [], customerType: 'other', painPoints: [], industry: null },
-      { format: 'cold_email' },
+      { format: 'cold_email' }
     );
     expect(Array.isArray(facts)).toBe(true);
   });
@@ -90,7 +90,7 @@ describe('facts-loader', () => {
         painPoints: ['high layer count PCB', 'low loss material'],
         industry: 'data center',
       },
-      { topN: 5, format: 'cold_email' },
+      { topN: 5, format: 'cold_email' }
     );
     expect(facts.length).toBeGreaterThanOrEqual(1);
     const text = facts.map((f) => f.claim.toLowerCase()).join(' ');

@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  mailApi,
-  type EmailSendItem,
-  type EmailSendStatus,
-} from '@/lib/api';
+import { mailApi, type EmailSendItem, type EmailSendStatus } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -123,7 +119,9 @@ export function EmailSendsPage() {
           </CardHeader>
           <CardContent>
             {isLoading && (
-              <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">加载中...</p>
+              <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">
+                加载中...
+              </p>
             )}
             {error && (
               <p className="py-8 text-center text-sm text-[var(--color-destructive)]">
@@ -268,19 +266,13 @@ function SendRow({
       </td>
       <td className="p-3 text-[11px] text-[var(--color-muted-foreground)] whitespace-nowrap">
         {send.deliveredAt && (
-          <div title={`送达: ${send.deliveredAt}`}>
-            送达 {formatShort(send.deliveredAt)}
-          </div>
+          <div title={`送达: ${send.deliveredAt}`}>送达 {formatShort(send.deliveredAt)}</div>
         )}
         {!send.deliveredAt && send.sentAt && (
-          <div title={`发送: ${send.sentAt}`}>
-            已发 {formatShort(send.sentAt)}
-          </div>
+          <div title={`发送: ${send.sentAt}`}>已发 {formatShort(send.sentAt)}</div>
         )}
         {!send.sentAt && (
-          <div title={`创建: ${send.createdAt}`}>
-            创建 {formatShort(send.createdAt)}
-          </div>
+          <div title={`创建: ${send.createdAt}`}>创建 {formatShort(send.createdAt)}</div>
         )}
         {send.firstOpenedAt && (
           <div className="text-indigo-600" title={`首次打开: ${send.firstOpenedAt}`}>

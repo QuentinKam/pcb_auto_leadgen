@@ -65,7 +65,10 @@ contactsRoutes.get('/first-by-company/:companyId', async (c) => {
     .limit(1);
 
   if (rows.length === 0) {
-    return c.json({ error: 'No active contact with email for this company', code: 'NO_CONTACT' }, 404);
+    return c.json(
+      { error: 'No active contact with email for this company', code: 'NO_CONTACT' },
+      404
+    );
   }
 
   const r = rows[0];

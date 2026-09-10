@@ -80,9 +80,7 @@ export function OverrideDialog({ lead, open, onClose, onSuccess }: OverrideDialo
           />
         </div>
 
-        {error && (
-          <p className="text-sm text-[var(--color-destructive)]">{error}</p>
-        )}
+        {error && <p className="text-sm text-[var(--color-destructive)]">{error}</p>}
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>

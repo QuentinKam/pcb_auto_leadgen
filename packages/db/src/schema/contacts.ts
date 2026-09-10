@@ -45,7 +45,7 @@ export const contacts = pgTable(
     }).onDelete('cascade'),
     emailUnique: unique('contacts_tenant_email_unique').on(table.tenantId, table.email),
     tenantCompanyIdx: index('contacts_tenant_company_idx').on(table.tenantId, table.companyId),
-  }),
+  })
 );
 
 export type Contact = typeof contacts.$inferSelect;

@@ -39,10 +39,7 @@ export interface LeadScoreItem {
   createdAt: string;
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {},
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${GATEWAY_URL}${path}`;
   const headers = new Headers(options.headers);
   headers.set('X-Tenant-Id', TENANT_ID);
@@ -97,11 +94,13 @@ export interface ContentDraft {
 }
 
 export const api = {
-  async listLeadScores(params: {
-    page?: number;
-    pageSize?: number;
-    grade?: 'A' | 'B' | 'C';
-  } = {}): Promise<LeadScoreListResponse> {
+  async listLeadScores(
+    params: {
+      page?: number;
+      pageSize?: number;
+      grade?: 'A' | 'B' | 'C';
+    } = {}
+  ): Promise<LeadScoreListResponse> {
     const query = new URLSearchParams();
     if (params.page) query.set('page', String(params.page));
     if (params.pageSize) query.set('pageSize', String(params.pageSize));
@@ -115,7 +114,7 @@ export const api = {
 
   async overrideLeadScore(
     id: string,
-    body: { finalGrade: 'A' | 'B' | 'C'; overrideReason: string },
+    body: { finalGrade: 'A' | 'B' | 'C'; overrideReason: string }
   ): Promise<LeadScoreItem> {
     return request<LeadScoreItem>(`/api/lead-scores/${id}/override`, {
       method: 'PATCH',
@@ -170,7 +169,7 @@ export const api = {
       status?: ContentStatus;
       body?: string;
       subject?: string;
-    },
+    }
   ): Promise<ContentDraft> {
     return request<ContentDraft>(`/api/content/drafts/${draftId}`, {
       method: 'PATCH',
@@ -312,11 +311,13 @@ export const mailApi = {
     return request<MailStatsResponse>('/api/mails/stats');
   },
 
-  async listCampaigns(params: {
-    page?: number;
-    pageSize?: number;
-    isWarmup?: boolean;
-  } = {}): Promise<EmailCampaignListResponse> {
+  async listCampaigns(
+    params: {
+      page?: number;
+      pageSize?: number;
+      isWarmup?: boolean;
+    } = {}
+  ): Promise<EmailCampaignListResponse> {
     const query = new URLSearchParams();
     if (params.page) query.set('offset', String((params.page - 1) * (params.pageSize ?? 50)));
     if (params.pageSize) query.set('limit', String(params.pageSize));
@@ -324,13 +325,15 @@ export const mailApi = {
     return request<EmailCampaignListResponse>(`/api/mails/campaigns?${query}`);
   },
 
-  async listSends(params: {
-    page?: number;
-    pageSize?: number;
-    status?: EmailSendStatus;
-    campaignId?: string;
-    companyId?: string;
-  } = {}): Promise<EmailSendListResponse> {
+  async listSends(
+    params: {
+      page?: number;
+      pageSize?: number;
+      status?: EmailSendStatus;
+      campaignId?: string;
+      companyId?: string;
+    } = {}
+  ): Promise<EmailSendListResponse> {
     const query = new URLSearchParams();
     if (params.page) query.set('offset', String((params.page - 1) * (params.pageSize ?? 50)));
     if (params.pageSize) query.set('limit', String(params.pageSize));
@@ -387,12 +390,14 @@ export interface ContactItem {
 }
 
 export const contactsApi = {
-  async listContacts(params: {
-    companyId?: string;
-    hasEmail?: boolean;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<{ total: number; limit: number; offset: number; items: ContactItem[] }> {
+  async listContacts(
+    params: {
+      companyId?: string;
+      hasEmail?: boolean;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<{ total: number; limit: number; offset: number; items: ContactItem[] }> {
     const query = new URLSearchParams();
     if (params.companyId) query.set('companyId', params.companyId);
     if (params.hasEmail !== undefined) query.set('hasEmail', String(params.hasEmail));

@@ -19,9 +19,10 @@ export interface SizeScoreResult {
   reason: string;
 }
 
-export function scoreSize(
-  company: { sizeBucket?: string | null; employeeCount?: number | null },
-): SizeScoreResult {
+export function scoreSize(company: {
+  sizeBucket?: string | null;
+  employeeCount?: number | null;
+}): SizeScoreResult {
   const { sizeBucket, employeeCount } = company;
 
   // 优先用 sizeBucket（采集时已分类）

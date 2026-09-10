@@ -47,13 +47,10 @@ export const emailCampaigns = pgTable(
     tenantStatusIdx: index('email_campaigns_tenant_status_idx').on(
       table.tenantId,
       table.status,
-      table.createdAt,
+      table.createdAt
     ),
-    tenantWarmupIdx: index('email_campaigns_tenant_warmup_idx').on(
-      table.tenantId,
-      table.isWarmup,
-    ),
-  }),
+    tenantWarmupIdx: index('email_campaigns_tenant_warmup_idx').on(table.tenantId, table.isWarmup),
+  })
 );
 
 export type EmailCampaign = typeof emailCampaigns.$inferSelect;

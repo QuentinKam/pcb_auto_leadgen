@@ -100,7 +100,7 @@ companiesRoutes.post(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -129,5 +129,5 @@ companiesRoutes.post(
     } as unknown as CompanyResponse;
 
     return c.json(data, 201);
-  },
+  }
 );

@@ -21,7 +21,7 @@ leadScoresRoutes.get(
     if (!result.success) {
       return c.json(
         { error: 'Invalid query', code: 'INVALID_QUERY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -72,7 +72,7 @@ leadScoresRoutes.get(
       page,
       pageSize,
     });
-  },
+  }
 );
 
 /**
@@ -119,7 +119,7 @@ leadScoresRoutes.patch(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -190,5 +190,5 @@ leadScoresRoutes.patch(
     } as unknown as LeadScoreResponse;
 
     return c.json(data, 201);
-  },
+  }
 );

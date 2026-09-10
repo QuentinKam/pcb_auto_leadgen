@@ -36,7 +36,13 @@ scoreRoutes.post('/company/:companyId', async (c) => {
   const contactRows = await db
     .select()
     .from(contacts)
-    .where(and(eq(contacts.companyId, company.id), eq(contacts.tenantId, tenantId), eq(contacts.active, true)))
+    .where(
+      and(
+        eq(contacts.companyId, company.id),
+        eq(contacts.tenantId, tenantId),
+        eq(contacts.active, true)
+      )
+    )
     .limit(1);
   const contact = contactRows[0] ?? null;
 
@@ -90,7 +96,7 @@ scoreRoutes.post(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -108,7 +114,12 @@ scoreRoutes.post(
       .where(eq(companies.tenantId, tenantId))
       .limit(limit);
 
-    const results: Array<{ companyId: string; score: number; grade: string; status: 'created' | 'skipped' }> = [];
+    const results: Array<{
+      companyId: string;
+      score: number;
+      grade: string;
+      status: 'created' | 'skipped';
+    }> = [];
     let skipped = 0;
 
     for (const company of companyRows) {
@@ -120,8 +131,8 @@ scoreRoutes.post(
           and(
             eq(leadScores.tenantId, tenantId),
             eq(leadScores.companyId, company.id),
-            isNull(leadScores.overriddenBy),
-          ),
+            isNull(leadScores.overriddenBy)
+          )
         )
         .limit(1);
 
@@ -140,7 +151,13 @@ scoreRoutes.post(
       const contactRows = await db
         .select()
         .from(contacts)
-        .where(and(eq(contacts.companyId, company.id), eq(contacts.tenantId, tenantId), eq(contacts.active, true)))
+        .where(
+          and(
+            eq(contacts.companyId, company.id),
+            eq(contacts.tenantId, tenantId),
+            eq(contacts.active, true)
+          )
+        )
         .limit(1);
       const contact = contactRows[0] ?? null;
 
@@ -169,7 +186,7 @@ scoreRoutes.post(
       skipped,
       results,
     });
-  },
+  }
 );
 
 /**

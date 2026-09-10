@@ -45,13 +45,13 @@ export const profiles = pgTable(
     }).onDelete('cascade'),
     tenantCompanyUnique: unique('profiles_tenant_company_unique').on(
       table.tenantId,
-      table.companyId,
+      table.companyId
     ),
     tenantCustomerTypeIdx: index('profiles_tenant_customer_type_idx').on(
       table.tenantId,
-      table.customerType,
+      table.customerType
     ),
-  }),
+  })
 );
 
 export type Profile = typeof profiles.$inferSelect;

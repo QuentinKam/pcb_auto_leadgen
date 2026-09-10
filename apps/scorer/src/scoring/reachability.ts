@@ -20,7 +20,7 @@ export interface ReachabilityScoreResult {
 }
 
 export function scoreReachability(
-  contact: { emailVerified?: string | null; linkedinUrl?: string | null } | null,
+  contact: { emailVerified?: string | null; linkedinUrl?: string | null } | null
 ): ReachabilityScoreResult {
   if (!contact) {
     return {

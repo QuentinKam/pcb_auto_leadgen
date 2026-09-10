@@ -18,7 +18,7 @@ export abstract class ContentTemplate {
    */
   abstract buildPrompt(
     ctx: TemplateContext,
-    variant: ContentVariant,
+    variant: ContentVariant
   ): { system: string; user: string };
 
   /**
@@ -89,14 +89,14 @@ Hard rules:
       ].join('\n');
     }
     const lines = facts.map(
-      (f) => `- [${f.id}] ${f.claim} (Source: ${f.source}${f.year ? `, ${f.year}` : ''})`,
+      (f) => `- [${f.id}] ${f.claim} (Source: ${f.source}${f.year ? `, ${f.year}` : ''})`
     );
     lines.push(
       '',
       'Usage rules for facts:',
       '- When you use a fact, append its ID in brackets at the END of the sentence that uses it, e.g. "...trend continues [F-016]."',
       '- Only use facts that are listed above. Do not invent numbers or statistics.',
-      '- If a specific data point is missing, write "[data gap: need XX]" instead of guessing.',
+      '- If a specific data point is missing, write "[data gap: need XX]" instead of guessing.'
     );
     return lines.join('\n');
   }

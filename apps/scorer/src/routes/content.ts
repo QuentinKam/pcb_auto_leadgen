@@ -36,17 +36,17 @@ contentRoutes.post('/profile/:companyId', async (c) => {
   // 调用画像 Agent
   let profileResult: ProfileResult;
   try {
-    profileResult = await generateProfile(
-      company.name,
-      company.description,
-      company.industry,
-    );
+    profileResult = await generateProfile(company.name, company.description, company.industry);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('API_KEY is not set')) {
       return c.json(
-        { error: 'LLM API key not configured. Set ANTHROPIC_API_KEY (for Claude) or OPENAI_API_KEY (for DeepSeek/OpenAI-compatible) in apps/scorer/.env.', code: 'LLM_NOT_CONFIGURED' },
-        503,
+        {
+          error:
+            'LLM API key not configured. Set ANTHROPIC_API_KEY (for Claude) or OPENAI_API_KEY (for DeepSeek/OpenAI-compatible) in apps/scorer/.env.',
+          code: 'LLM_NOT_CONFIGURED',
+        },
+        503
       );
     }
     throw err;
@@ -114,7 +114,7 @@ contentRoutes.post(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -144,8 +144,11 @@ contentRoutes.post(
       .limit(1);
     if (!profile) {
       return c.json(
-        { error: 'Profile not found. Call POST /content/profile/:companyId first.', code: 'PROFILE_NOT_FOUND' },
-        400,
+        {
+          error: 'Profile not found. Call POST /content/profile/:companyId first.',
+          code: 'PROFILE_NOT_FOUND',
+        },
+        400
       );
     }
 
@@ -177,7 +180,7 @@ contentRoutes.post(
         painPoints: profile.painPoints ?? [],
         industry: company.industry,
       },
-      { format: format as ContentFormat },
+      { format: format as ContentFormat }
     );
 
     // 组装模板上下文
@@ -213,8 +216,12 @@ contentRoutes.post(
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('API_KEY is not set')) {
         return c.json(
-          { error: 'LLM API key not configured. Set ANTHROPIC_API_KEY (for Claude) or OPENAI_API_KEY (for DeepSeek/OpenAI-compatible) in apps/scorer/.env.', code: 'LLM_NOT_CONFIGURED' },
-          503,
+          {
+            error:
+              'LLM API key not configured. Set ANTHROPIC_API_KEY (for Claude) or OPENAI_API_KEY (for DeepSeek/OpenAI-compatible) in apps/scorer/.env.',
+            code: 'LLM_NOT_CONFIGURED',
+          },
+          503
         );
       }
       throw err;
@@ -241,11 +248,11 @@ contentRoutes.post(
           })
           .returning();
         return inserted;
-      }),
+      })
     );
 
     return c.json(saved, 201);
-  },
+  }
 );
 
 /**
@@ -284,7 +291,7 @@ contentRoutes.patch(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -315,5 +322,5 @@ contentRoutes.patch(
     }
 
     return c.json(updated);
-  },
+  }
 );

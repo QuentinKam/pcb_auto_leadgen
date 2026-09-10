@@ -45,9 +45,9 @@ export const auditLogs = pgTable(
       table.tenantId,
       table.entityType,
       table.entityId,
-      table.createdAt,
+      table.createdAt
     ),
-  }),
+  })
 );
 
 export type AuditLog = typeof auditLogs.$inferSelect;

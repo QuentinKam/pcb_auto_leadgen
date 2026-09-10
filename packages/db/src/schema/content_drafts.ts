@@ -1,12 +1,4 @@
-import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  text,
-  foreignKey,
-  index,
-} from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, timestamp, text, foreignKey, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.ts';
 import { companies } from './companies.ts';
 import { contacts } from './contacts.ts';
@@ -63,14 +55,14 @@ export const contentDrafts = pgTable(
     }).onDelete('set null'),
     tenantCompanyIdx: index('content_drafts_tenant_company_idx').on(
       table.tenantId,
-      table.companyId,
+      table.companyId
     ),
     tenantStatusIdx: index('content_drafts_tenant_status_idx').on(
       table.tenantId,
       table.status,
-      table.createdAt,
+      table.createdAt
     ),
-  }),
+  })
 );
 
 export type ContentDraft = typeof contentDrafts.$inferSelect;

@@ -9,7 +9,11 @@ export const tenantPlanEnum = z.enum(['free', 'pro', 'enterprise']);
 
 export const tenantCreateSchema = z.object({
   name: z.string().min(1).max(255),
-  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'slug must be lowercase kebab'),
+  slug: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[a-z0-9-]+$/, 'slug must be lowercase kebab'),
   plan: tenantPlanEnum.default('free'),
 });
 

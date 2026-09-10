@@ -47,7 +47,7 @@ tenantsRoutes.post(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -63,5 +63,5 @@ tenantsRoutes.post(
       updatedAt: row.updatedAt.toISOString(),
     } as unknown as TenantResponse;
     return c.json(data, 201);
-  },
+  }
 );

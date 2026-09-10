@@ -7,10 +7,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90',
-        destructive: 'bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:opacity-90',
-        outline: 'border border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-accent)]',
-        secondary: 'bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] hover:opacity-90',
+        default:
+          'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-90',
+        destructive:
+          'bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:opacity-90',
+        outline:
+          'border border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-accent)]',
+        secondary:
+          'bg-[var(--color-secondary)] text-[var(--color-secondary-foreground)] hover:opacity-90',
         ghost: 'hover:bg-[var(--color-accent)]',
         link: 'text-[var(--color-primary)] underline-offset-4 hover:underline',
       },
@@ -25,7 +29,7 @@ const buttonVariants = cva(
       variant: 'default',
       size: 'default',
     },
-  },
+  }
 );
 
 export interface ButtonProps
@@ -33,12 +37,7 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {}
 
 export function Button({ className, variant, size, ...props }: ButtonProps) {
-  return (
-    <button
-      className={cn(buttonVariants({ variant, size }), className)}
-      {...props}
-    />
-  );
+  return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }
 
 export { buttonVariants };

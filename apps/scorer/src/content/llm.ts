@@ -80,10 +80,7 @@ export function getActiveModelName(): string {
  * 调用 LLM
  * 自动根据 LLM_PROVIDER 选择 Anthropic 或 OpenAI 兼容接口
  */
-export async function chat(
-  messages: LLMMessage[],
-  options: LLMChatOptions = {},
-): Promise<string> {
+export async function chat(messages: LLMMessage[], options: LLMChatOptions = {}): Promise<string> {
   const provider = getProvider();
   const apiKey = getApiKey(provider);
   const model = getModel(provider, options.model);
@@ -194,7 +191,7 @@ async function chatOpenAICompatible(params: {
  */
 export async function chatJson<T>(
   messages: LLMMessage[],
-  options: LLMChatOptions = {},
+  options: LLMChatOptions = {}
 ): Promise<T> {
   const jsonConstraint: LLMMessage = {
     role: 'system',
@@ -215,7 +212,11 @@ export async function chatJson<T>(
 
   const text = await chat(mergedMessages, options);
 
-  const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/, '').trim();
+  const cleaned = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/, '')
+    .trim();
 
   try {
     return JSON.parse(cleaned) as T;

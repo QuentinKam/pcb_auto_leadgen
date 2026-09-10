@@ -13,8 +13,12 @@ interface FactsFile {
   facts: RawFact[];
 }
 
-const DEFAULT_FACTS_PATH = process.env.FACTS_JSON_PATH
-  ?? new URL('../../../../aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json', import.meta.url).pathname;
+const DEFAULT_FACTS_PATH =
+  process.env.FACTS_JSON_PATH ??
+  new URL(
+    '../../../../aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json',
+    import.meta.url
+  ).pathname;
 
 let cachedFacts: IndustryFact[] | null = null;
 let cacheLoadedAt = 0;
@@ -31,15 +35,63 @@ const CATEGORY_PRIORITY: Record<string, number> = {
 };
 
 const INDUSTRY_KEYWORDS: Record<string, string[]> = {
-  automotive: ['automotive', 'car ', 'vehicle', 'electric vehicle', 'ev ', 'adas', 'aec-q', 'iatf16949', '汽车', '车规'],
+  automotive: [
+    'automotive',
+    'car ',
+    'vehicle',
+    'electric vehicle',
+    'ev ',
+    'adas',
+    'aec-q',
+    'iatf16949',
+    '汽车',
+    '车规',
+  ],
   medical: ['medical', 'healthcare', 'device', 'implant', 'iso13485', '生物兼容', '医疗'],
   aerospace: ['aerospace', 'aviation', 'military', 'defense', 'as9100', '航天', '军工', '国军标'],
   telecom: ['telecom', '5g', 'base station', 'antenna', 'switch', 'router', '通信', '基站'],
-  consumer_electronics: ['consumer', 'smartphone', 'wearable', 'mobile', 'phone', 'tablet', '消费电子', '可穿戴', '手机'],
-  industrial_equipment: ['industrial', 'automation', 'control', 'motor', 'sensor', '工控', '工业设备', '传感器'],
-  startup_hardware: ['startup', 'prototype', 'r&d', 'innovation', 'start-up', '创业', '研发', '打样'],
+  consumer_electronics: [
+    'consumer',
+    'smartphone',
+    'wearable',
+    'mobile',
+    'phone',
+    'tablet',
+    '消费电子',
+    '可穿戴',
+    '手机',
+  ],
+  industrial_equipment: [
+    'industrial',
+    'automation',
+    'control',
+    'motor',
+    'sensor',
+    '工控',
+    '工业设备',
+    '传感器',
+  ],
+  startup_hardware: [
+    'startup',
+    'prototype',
+    'r&d',
+    'innovation',
+    'start-up',
+    '创业',
+    '研发',
+    '打样',
+  ],
   iot: ['iot', 'internet of things', 'smart ', 'edge', '物联网'],
-  ai_server: ['ai server', 'gpu', 'accelerator', 'high-speed', '224g', 'data center', '服务器', '算力'],
+  ai_server: [
+    'ai server',
+    'gpu',
+    'accelerator',
+    'high-speed',
+    '224g',
+    'data center',
+    '服务器',
+    '算力',
+  ],
 };
 
 function stripMarkdown(text: string): string {
@@ -87,7 +139,7 @@ function scoreFact(
     customerType: string;
     painPoints: string[];
     industry: string | null | undefined;
-  },
+  }
 ): number {
   let score = 0;
 
@@ -143,7 +195,7 @@ export async function matchRelevantFacts(
     painPoints: string[];
     industry?: string | null;
   },
-  options: MatchFactsOptions = {},
+  options: MatchFactsOptions = {}
 ): Promise<IndustryFact[]> {
   const { topN = 5, format = 'cold_email' } = options;
   const allFacts = (await loadFacts()) as Array<IndustryFact & { cat: string }>;
@@ -168,9 +220,7 @@ export async function matchRelevantFacts(
       break;
   }
 
-  const pool = preferredCats
-    ? allFacts.filter((f) => preferredCats.includes(f.cat))
-    : allFacts;
+  const pool = preferredCats ? allFacts.filter((f) => preferredCats.includes(f.cat)) : allFacts;
 
   const scored = pool
     .map((f) => ({ fact: f, score: scoreFact(f, context) }))

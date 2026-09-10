@@ -155,12 +155,7 @@ app.post('/resend', async (c) => {
     if (eventType === 'email.bounced') {
       const isHard =
         typeof bounceTypeRaw === 'string' && bounceTypeRaw.toLowerCase().startsWith('hard');
-      await handleBounceBlacklist(
-        actualTenantId,
-        matched.id,
-        matched.campaignId,
-        isHard
-      );
+      await handleBounceBlacklist(actualTenantId, matched.id, matched.campaignId, isHard);
     }
 
     if (eventType === 'email.complained' || eventType === 'email.spam') {
@@ -226,7 +221,12 @@ async function handleComplaintThreshold(tenantId: string, sendId: string): Promi
       domainComplained: sql<number>`COUNT(*) FILTER (WHERE ${emailSends.status} = 'complained')`,
     })
     .from(emailSends)
-    .where(and(eq(emailSends.tenantId, tenantId), eq(emailSends.sendingDomain, sendRows[0]?.sendingDomain ?? '')))) as unknown as Array<{
+    .where(
+      and(
+        eq(emailSends.tenantId, tenantId),
+        eq(emailSends.sendingDomain, sendRows[0]?.sendingDomain ?? '')
+      )
+    )) as unknown as Array<{
     domainSent: number;
     domainComplained: number;
   }>;

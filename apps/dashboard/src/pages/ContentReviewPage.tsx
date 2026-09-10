@@ -38,12 +38,13 @@ const STATUS_LABEL: Record<ContentDraft['status'], string> = {
   sent: '已发送',
 };
 
-const STATUS_VARIANT: Record<ContentDraft['status'], 'outline' | 'default' | 'gradeA' | 'gradeC'> = {
-  generated: 'outline',
-  approved: 'gradeA',
-  rejected: 'gradeC',
-  sent: 'default',
-};
+const STATUS_VARIANT: Record<ContentDraft['status'], 'outline' | 'default' | 'gradeA' | 'gradeC'> =
+  {
+    generated: 'outline',
+    approved: 'gradeA',
+    rejected: 'gradeC',
+    sent: 'default',
+  };
 
 interface CompanyRow {
   id: string;
@@ -101,7 +102,7 @@ export function ContentReviewPage() {
 
   const selectedCompany: CompanyRow | undefined = useMemo(
     () => companies.find((c) => c.id === selectedCompanyId),
-    [companies, selectedCompanyId],
+    [companies, selectedCompanyId]
   );
 
   const filteredDrafts = useMemo(() => {
@@ -140,8 +141,17 @@ export function ContentReviewPage() {
   });
 
   const updateDraft = useMutation({
-    mutationFn: (params: { id: string; status?: ContentDraft['status']; body?: string; subject?: string }) =>
-      api.updateContentDraft(params.id, { status: params.status, body: params.body, subject: params.subject }),
+    mutationFn: (params: {
+      id: string;
+      status?: ContentDraft['status'];
+      body?: string;
+      subject?: string;
+    }) =>
+      api.updateContentDraft(params.id, {
+        status: params.status,
+        body: params.body,
+        subject: params.subject,
+      }),
     onSuccess: async () => {
       void queryClient.invalidateQueries({ queryKey: ['contentDrafts', selectedCompanyId] });
       setEditingDraftId(null);
@@ -229,9 +239,15 @@ export function ContentReviewPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {companiesLoading && <p className="py-6 text-center text-sm text-[var(--color-muted-foreground)]">加载中...</p>}
+              {companiesLoading && (
+                <p className="py-6 text-center text-sm text-[var(--color-muted-foreground)]">
+                  加载中...
+                </p>
+              )}
               {!companiesLoading && companies.length === 0 && (
-                <p className="py-6 text-center text-sm text-[var(--color-muted-foreground)]">暂无公司</p>
+                <p className="py-6 text-center text-sm text-[var(--color-muted-foreground)]">
+                  暂无公司
+                </p>
               )}
               {companies.map((c) => (
                 <button
@@ -278,9 +294,7 @@ export function ContentReviewPage() {
           <Card className="col-span-12 lg:col-span-4">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-lg">
-                  {selectedCompany?.name ?? '未选择公司'}
-                </CardTitle>
+                <CardTitle className="text-lg">{selectedCompany?.name ?? '未选择公司'}</CardTitle>
                 <CardDescription>
                   {selectedCompany?.website
                     ? selectedCompany.website.replace(/^https?:\/\//, '')
@@ -305,7 +319,9 @@ export function ContentReviewPage() {
                 </p>
               )}
               {selectedCompanyId && profileLoading && (
-                <p className="py-12 text-center text-[var(--color-muted-foreground)]">画像生成中...</p>
+                <p className="py-12 text-center text-[var(--color-muted-foreground)]">
+                  画像生成中...
+                </p>
               )}
               {selectedCompanyId && !profileLoading && !profile && (
                 <div className="rounded-md border border-[var(--color-destructive)] p-4 text-[var(--color-destructive)]">
@@ -322,7 +338,7 @@ export function ContentReviewPage() {
                   <Section title="客户类型">
                     <Badge variant="outline">
                       {profile.customerType
-                        ? CUSTOMER_TYPE_LABEL[profile.customerType] ?? profile.customerType
+                        ? (CUSTOMER_TYPE_LABEL[profile.customerType] ?? profile.customerType)
                         : '未识别'}
                     </Badge>
                   </Section>
@@ -375,7 +391,7 @@ export function ContentReviewPage() {
                       disabled={contentGenerating}
                       onClick={() =>
                         generateContent.mutate(
-                          (formatFilter === 'ALL' ? 'cold_email' : formatFilter) as ContentFormat,
+                          (formatFilter === 'ALL' ? 'cold_email' : formatFilter) as ContentFormat
                         )
                       }
                     >
@@ -455,7 +471,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function TagList({ tags }: { tags: string[] }) {
-  if (!tags || tags.length === 0) return <span className="text-[var(--color-muted-foreground)]">无</span>;
+  if (!tags || tags.length === 0)
+    return <span className="text-[var(--color-muted-foreground)]">无</span>;
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map((t, i) => (
@@ -468,7 +485,8 @@ function TagList({ tags }: { tags: string[] }) {
 }
 
 function BulletList({ items }: { items: string[] }) {
-  if (!items || items.length === 0) return <span className="text-[var(--color-muted-foreground)]">无</span>;
+  if (!items || items.length === 0)
+    return <span className="text-[var(--color-muted-foreground)]">无</span>;
   return (
     <ul className="list-disc pl-5 space-y-1">
       {items.map((it, i) => (
@@ -516,7 +534,9 @@ function DraftCard({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Badge variant={draft.variant === 'A' ? 'default' : 'outline'}>变体 {draft.variant}</Badge>
+            <Badge variant={draft.variant === 'A' ? 'default' : 'outline'}>
+              变体 {draft.variant}
+            </Badge>
             <Badge variant={STATUS_VARIANT[draft.status]}>{STATUS_LABEL[draft.status]}</Badge>
             {draft.approvedAt && (
               <span className="text-xs text-[var(--color-muted-foreground)]">
@@ -551,7 +571,8 @@ function DraftCard({
             {draft.body}
           </pre>
         )}
-        {(draft.usedFacts && draft.usedFacts.length > 0) || (draft.gaps && draft.gaps.length > 0) ? (
+        {(draft.usedFacts && draft.usedFacts.length > 0) ||
+        (draft.gaps && draft.gaps.length > 0) ? (
           <div className="space-y-1 pt-2 border-t border-dashed border-[var(--color-border)] text-xs">
             {draft.usedFacts && draft.usedFacts.length > 0 && (
               <div className="text-[var(--color-muted-foreground)]">
@@ -612,7 +633,11 @@ function DraftCard({
                 disabled={actionLoading || draft.status === 'sent' || draft.status === 'rejected'}
                 onClick={onSendDraft}
               >
-                {draft.status === 'sent' ? '已入队' : draft.status === 'approved' ? '入队发送' : '批准并发信'}
+                {draft.status === 'sent'
+                  ? '已入队'
+                  : draft.status === 'approved'
+                    ? '入队发送'
+                    : '批准并发信'}
               </Button>
             </>
           )}

@@ -70,9 +70,24 @@ export function LeadsPage() {
 
         {/* 统计卡片 */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard title="A级线索" count={statsA.data?.total ?? 0} variant="gradeA" loading={statsA.isLoading} />
-          <StatCard title="B级线索" count={statsB.data?.total ?? 0} variant="gradeB" loading={statsB.isLoading} />
-          <StatCard title="C级线索" count={statsC.data?.total ?? 0} variant="gradeC" loading={statsC.isLoading} />
+          <StatCard
+            title="A级线索"
+            count={statsA.data?.total ?? 0}
+            variant="gradeA"
+            loading={statsA.isLoading}
+          />
+          <StatCard
+            title="B级线索"
+            count={statsB.data?.total ?? 0}
+            variant="gradeB"
+            loading={statsB.isLoading}
+          />
+          <StatCard
+            title="C级线索"
+            count={statsC.data?.total ?? 0}
+            variant="gradeC"
+            loading={statsC.isLoading}
+          />
         </div>
 
         {/* 筛选 */}
@@ -96,7 +111,11 @@ export function LeadsPage() {
             <CardTitle className="text-lg">线索列表（共 {total} 条）</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading && <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">加载中...</p>}
+            {isLoading && (
+              <p className="py-8 text-center text-sm text-[var(--color-muted-foreground)]">
+                加载中...
+              </p>
+            )}
             {error && (
               <p className="py-8 text-center text-sm text-[var(--color-destructive)]">
                 加载失败：{error.message}
@@ -123,9 +142,14 @@ export function LeadsPage() {
                   </thead>
                   <tbody>
                     {data.data.map((lead) => (
-                      <tr key={lead.id} className="border-b border-[var(--color-border)] hover:bg-[var(--color-accent)]">
+                      <tr
+                        key={lead.id}
+                        className="border-b border-[var(--color-border)] hover:bg-[var(--color-accent)]"
+                      >
                         <td className="p-3 font-semibold">{lead.score}</td>
-                        <td className="p-3"><Badge variant={GRADE_BADGE[lead.grade]}>{lead.grade}</Badge></td>
+                        <td className="p-3">
+                          <Badge variant={GRADE_BADGE[lead.grade]}>{lead.grade}</Badge>
+                        </td>
                         <td className="p-3">
                           {lead.finalGrade !== lead.grade ? (
                             <Badge variant={GRADE_BADGE[lead.finalGrade]}>{lead.finalGrade}*</Badge>
@@ -134,7 +158,9 @@ export function LeadsPage() {
                           )}
                         </td>
                         <td className="p-3 text-xs text-[var(--color-muted-foreground)]">
-                          I:{lead.dimensionBreakdown.industry} K:{lead.dimensionBreakdown.pcb_keywords} R:{lead.dimensionBreakdown.role} S:{lead.dimensionBreakdown.size} A:{lead.dimensionBreakdown.reachability}
+                          I:{lead.dimensionBreakdown.industry} K:
+                          {lead.dimensionBreakdown.pcb_keywords} R:{lead.dimensionBreakdown.role} S:
+                          {lead.dimensionBreakdown.size} A:{lead.dimensionBreakdown.reachability}
                         </td>
                         <td className="p-3 text-xs">
                           {lead.overriddenBy ? (

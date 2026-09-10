@@ -52,7 +52,7 @@ contentRoutes.post(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -77,7 +77,7 @@ contentRoutes.post(
       }
       return c.json({ error: `Scorer unavailable: ${msg}`, code: 'SCORER_UNAVAILABLE' }, 502);
     }
-  },
+  }
 );
 
 contentRoutes.get('/drafts/:companyId', async (c) => {
@@ -113,7 +113,7 @@ contentRoutes.patch(
     if (!result.success) {
       return c.json(
         { error: 'Invalid body', code: 'INVALID_BODY', details: result.error.issues },
-        400,
+        400
       );
     }
   }),
@@ -139,5 +139,5 @@ contentRoutes.patch(
       }
       return c.json({ error: `Scorer unavailable: ${msg}`, code: 'SCORER_UNAVAILABLE' }, 502);
     }
-  },
+  }
 );

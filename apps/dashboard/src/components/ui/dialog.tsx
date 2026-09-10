@@ -25,21 +25,16 @@ export function Dialog({ open, onClose, title, description, children }: DialogPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-black/50"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div
         className={cn(
           'relative z-50 w-full max-w-lg rounded-lg border border-[var(--color-border)]',
-          'bg-[var(--color-card)] p-6 shadow-lg',
+          'bg-[var(--color-card)] p-6 shadow-lg'
         )}
       >
         {title && <h2 className="mb-2 text-lg font-semibold">{title}</h2>}
         {description && (
-          <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">
-            {description}
-          </p>
+          <p className="mb-4 text-sm text-[var(--color-muted-foreground)]">{description}</p>
         )}
         {children}
       </div>
@@ -53,11 +48,7 @@ interface DialogFooterProps {
 }
 
 export function DialogFooter({ children, className }: DialogFooterProps) {
-  return (
-    <div className={cn('mt-6 flex justify-end space-x-2', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('mt-6 flex justify-end space-x-2', className)}>{children}</div>;
 }
 
 export { Button as DialogButton };

@@ -44,17 +44,15 @@ export const emailEvents = pgTable(
     tenantEventTypeIdx: index('email_events_tenant_event_type_idx').on(
       table.tenantId,
       table.eventType,
-      table.createdAt,
+      table.createdAt
     ),
     tenantSendIdx: index('email_events_tenant_send_idx').on(
       table.tenantId,
       table.sendId,
-      table.createdAt,
+      table.createdAt
     ),
-    resendEventIdIdx: index('email_events_resend_event_id_idx').on(
-      table.resendEventId,
-    ),
-  }),
+    resendEventIdIdx: index('email_events_resend_event_id_idx').on(table.resendEventId),
+  })
 );
 
 export type EmailEvent = typeof emailEvents.$inferSelect;

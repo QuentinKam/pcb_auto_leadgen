@@ -62,7 +62,7 @@ Rules:
 export async function generateProfile(
   companyName: string,
   companyDescription: string | null | undefined,
-  industry?: string | null,
+  industry?: string | null
 ): Promise<ProfileResult> {
   const description = companyDescription?.trim() || 'No description available.';
 
@@ -78,7 +78,7 @@ Analyze this company and output the profile JSON.`;
       { role: 'system', content: PROFILE_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
-    { temperature: 0.3, maxTokens: 1500 },
+    { temperature: 0.3, maxTokens: 1500 }
   );
 
   // 防御性处理：确保所有字段存在且类型正确
