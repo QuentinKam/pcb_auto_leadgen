@@ -379,3 +379,50 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - [x] `demo:reset` 回滚实测：演示数据归零（companies 13→1、drafts 14→0），真实 warmup 记录与占位公司不受影响
 - [x] 回归：gateway 17/17 + scorer 42/42 测试通过；`@pcb/dashboard`（含 tsc）/ gateway / scorer 三个 build 全绿；`scripts/` biome 检查零错误
 
+---
+
+## 十二、生产部署：阿里云服务器（2026-09-10）✅
+
+> 目标机 `47.251.97.20`（阿里云 Alibaba Cloud Linux 3 / 2 vCPU / 1.8G / 40G）。
+> 详见 `DEPLOY.md`。
+
+### 12.1 部署形态：共享机器上的纯增量部署
+- [x] 侦察确认该机**并非空闲机器**：宝塔面板 + nginx(多端口) + MariaDB(3306) + PostgreSQL 13(5432) + Redis 6(6379) + PM2 上跑着 WordPress×2 / Medusa 商城(`brick_parts_store`) / 2 个 Next.js 应用，磁盘剩 16G、1.8G 内存且已在使用 swap
+- [x] 因此**不用 Docker**，直接复用机器既有 PG/Redis/PM2/nginx；全部改动为增量
+- [x] 未触碰既有业务：新建独立库、Redis 走独立 DB 号、端口全用空闲端口、nginx 仅新增 2 个 vhost 并先 `nginx -t` 通过再 reload
+
+### 12.2 两套完全隔离的实例
+| | 演示环境 (demo) | 生产环境 (prod) |
+|---|---|---|
+| 数据库 | `pcb_leadgen_demo` | `pcb_leadgen` |
+| Redis | `6379/5` | `6379/6` |
+| gateway / scorer / mailer | 3011 / 3012 / 3013 | 3021 / 3022 / 3023 |
+| 对外端口 | **8090（已放行，公网可达）** | 8091（待放行） |
+| 数据 | 12 公司 / 14 打分 / 12 画像 / 14 草稿 / 79 发送 | 空库（仅 tenant + user） |
+
+- [x] 按需求「只起看板+查询」：**不启用 send-worker / warmup-worker** → 服务器上「批准并发信」会停在 `queued`（真发信演示仍用本机 `./demo.command`）
+- [x] 数据库账号 `pcb_user`，密码存服务器 `/root/.pcb_pgpw`（600），未入仓库
+
+### 12.3 部署过程中实测发现并修复的问题
+- [x] **PM2 + bun interpreter 静默不监听（阻塞级）**：`interpreter: 'bun'` 会 import 模块，而 Bun 的 `export default { port, fetch }` 只在作为入口运行时才监听 → PM2 显示 online、日志照打 `listening`、error log 全空，但端口根本不 listen。修：`script: /usr/local/bin/bun` + `args: run src/index.ts` + `interpreter: none`
+- [x] **`seed.ts` 在全新数据库上 FK 违约**：`audit_logs.user_id` → `users` 外键，seed 只建 tenant 未建 user（本机因该行早已存在从未暴露，换干净机器必崩）。修：补 `ensureUser()`
+- [x] **残留探测进程占端口**：早前用于测安全组的 `node listen(8090)` 还在跑，nginx 抢不到 8090，公网返回 `PROBE_OK` 而非看板。修：`pkill` 后 reload nginx
+- [x] **rsync 带回 uid 501**：服务器上 501 是系统账号 `games`，同步后统一 `chown -R root:root`
+
+### 12.4 验证结果
+- [x] 6 个服务 `/health` 全 200；3011-3013 / 3021-3023 全部 listen；既有 4 个 PM2 应用仍 online
+- [x] **公网** `http://47.251.97.20:8090`：index.html 200 · `/api/lead-scores` total=12 · `/api/mails/stats` totalSent=79 开信率 70.2% · 静态资源 300KB 200 · SPA 深路由回退 200 · 画像只读接口 200（20ms，验证了 GET 只读改造生效）
+- [x] 生产环境 `/api/lead-scores` total=0、`/api/mails/stats` 全 0 → 两套环境确已隔离
+- [x] 内存占用约 366MB（6 进程），可用内存 1.2G；`pm2 save` 已持久化，`pm2-root` 开机自启 enabled
+
+### 12.5 交付物
+- [x] `DEPLOY.md`：访问地址 / 隔离关系 / 服务器目录 / 日常运维 / 重新部署 / 补起 worker / basic auth / 演示数据重灌 / 排错表 / 安全组记录
+- [x] `scripts/demo/seed.ts`：补 `ensureUser()`（空库可用）
+- [x] 服务器：`/opt/pcb-leadgen`、`ecosystem.config.cjs`、`/www/server/panel/vhost/nginx/pcb-{demo,prod}.conf`
+
+### 12.6 遗留事项
+- [x] 已给生产环境加 nginx **HTTP Basic Auth**（用户名 `pcbadmin`，密码存服务器 `/root/.pcb_basicauth_pass`，密码文件 `/etc/nginx/pcb-prod.htpasswd`）—— 8090 演示环境有意保持公开
+- [ ] ⚠️ **生产环境 8091 仍需在阿里云安全组放行**（basic auth 已就绪，加 8091/TCP 规则即可）
+- [ ] PM2 日志未配轮转（`pm2 install pm2-logrotate`），长期运行需补
+- [ ] 未配域名/HTTPS（`rakuto.store` 未解析到本机，且大陆机器需 ICP 备案）
+

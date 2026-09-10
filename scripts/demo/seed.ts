@@ -84,6 +84,7 @@ function demoEmail(slug: string): string {
 const { db } = await import('@pcb/db');
 const {
   tenants,
+  users,
   companies,
   contacts,
   leadScores,
@@ -226,8 +227,26 @@ async function ensureTenant(): Promise<void> {
     .onConflictDoNothing();
 }
 
+/**
+ * audit_logs.user_id 有指向 users 的外键，全新数据库上没有这行就会直接 FK 违约。
+ * 本机开发时该行早已存在，所以此前一直没暴露；换台干净机器 seed 必崩。
+ */
+async function ensureUser(): Promise<void> {
+  await db
+    .insert(users)
+    .values({
+      id: USER_ID,
+      tenantId: TENANT_ID,
+      email: 'demo@pcb-leadgen.local',
+      name: 'Demo Operator',
+      role: 'admin',
+    })
+    .onConflictDoNothing();
+}
+
 async function seed(): Promise<void> {
   await ensureTenant();
+  await ensureUser();
 
   // 倒序插入：companies 列表按 createdAt desc 排，最后插入的排最前 → Volterra 置顶
   const ordered = [...DEMO_COMPANIES].reverse();
