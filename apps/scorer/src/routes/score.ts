@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq, and, sql, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { db, companies, contacts, leadScores } from '@pcb/db';
+import { db, companies, leadScores } from '@pcb/db';
 import { scoreLead, SCORING_MODEL_VERSION } from '../scoring/index.ts';
 import type { LeadScoreResponse } from '@pcb/types';
 
@@ -10,9 +10,7 @@ export const scoreRoutes = new Hono();
 
 /**
  * POST /score/company/:companyId
- * 手动触发单条公司打分
- * 查询 company + 关联的 primary contact（取 title 最匹配决策权的）
- * 调用 scoreLead 写入 lead_scores 表
+ * 手动触发单条公司打分（v2 领域模型，公司级打分，不依赖联系人）
  */
 scoreRoutes.post('/company/:companyId', async (c) => {
   const companyId = c.req.param('companyId');
@@ -21,7 +19,6 @@ scoreRoutes.post('/company/:companyId', async (c) => {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
   }
 
-  // 查 company
   const [company] = await db
     .select()
     .from(companies)
@@ -31,36 +28,27 @@ scoreRoutes.post('/company/:companyId', async (c) => {
     return c.json({ error: 'Company not found', code: 'NOT_FOUND' }, 404);
   }
 
-  // 查该公司的联系人，按决策权粗排序：采购/硬件/项目经理优先
-  // P1 简化：取第一条 active contact
-  const contactRows = await db
-    .select()
-    .from(contacts)
-    .where(
-      and(
-        eq(contacts.companyId, company.id),
-        eq(contacts.tenantId, tenantId),
-        eq(contacts.active, true)
-      )
-    )
-    .limit(1);
-  const contact = contactRows[0] ?? null;
+  const result = scoreLead({
+    industry: company.industry,
+    description: company.description,
+    rawPayload: company.rawPayload,
+    sizeBucket: company.sizeBucket,
+    employeeCount: company.employeeCount,
+    fundingStage: company.fundingStage,
+  });
 
-  // 打分
-  const result = scoreLead(company, contact);
-
-  // 写入 lead_scores
   const [inserted] = await db
     .insert(leadScores)
     .values({
       tenantId,
       companyId: company.id,
-      contactId: contact?.id ?? null,
       score: result.score,
       grade: result.grade,
-      finalGrade: result.grade, // 模型分 = 最终分（未被人工覆盖）
+      finalGrade: result.grade,
       reason: result.reason,
       dimensionBreakdown: result.dimensionBreakdown,
+      evidence: result.evidence,
+      excluded: result.excluded,
       modelVersion: SCORING_MODEL_VERSION,
     })
     .returning();
@@ -69,21 +57,12 @@ scoreRoutes.post('/company/:companyId', async (c) => {
     return c.json({ error: 'Failed to insert score', code: 'INSERT_FAILED' }, 500);
   }
 
-  const data = {
-    ...inserted,
-    contactId: inserted.contactId ?? null,
-    overriddenBy: inserted.overriddenBy ?? null,
-    overrideReason: inserted.overrideReason ?? null,
-    createdAt: inserted.createdAt.toISOString(),
-  } as unknown as LeadScoreResponse;
-
-  return c.json(data, 201);
+  return c.json(serializeScore(inserted), 201);
 });
 
 /**
  * POST /score/batch
  * 批量打分：给某租户下所有未打分（或重新打分）的公司打分
- * 入参：{ tenantId, limit?, grade? }
  * 简化：前端按需触发，P3 接入 BullMQ 改为异步队列
  */
 const batchSchema = z.object({
@@ -107,7 +86,6 @@ scoreRoutes.post(
     }
     const { limit } = c.req.valid('json');
 
-    // 拿到 tenant 下所有 companies
     const companyRows = await db
       .select()
       .from(companies)
@@ -123,7 +101,6 @@ scoreRoutes.post(
     let skipped = 0;
 
     for (const company of companyRows) {
-      // 检查是否已有未被覆盖的打分（partial unique index 约束）
       const existing = await db
         .select({ id: leadScores.id })
         .from(leadScores)
@@ -147,30 +124,25 @@ scoreRoutes.post(
         continue;
       }
 
-      // 取 primary contact（简化）
-      const contactRows = await db
-        .select()
-        .from(contacts)
-        .where(
-          and(
-            eq(contacts.companyId, company.id),
-            eq(contacts.tenantId, tenantId),
-            eq(contacts.active, true)
-          )
-        )
-        .limit(1);
-      const contact = contactRows[0] ?? null;
+      const result = scoreLead({
+        industry: company.industry,
+        description: company.description,
+        rawPayload: company.rawPayload,
+        sizeBucket: company.sizeBucket,
+        employeeCount: company.employeeCount,
+        fundingStage: company.fundingStage,
+      });
 
-      const result = scoreLead(company, contact);
       await db.insert(leadScores).values({
         tenantId,
         companyId: company.id,
-        contactId: contact?.id ?? null,
         score: result.score,
         grade: result.grade,
         finalGrade: result.grade,
         reason: result.reason,
         dimensionBreakdown: result.dimensionBreakdown,
+        evidence: result.evidence,
+        excluded: result.excluded,
         modelVersion: SCORING_MODEL_VERSION,
       });
       results.push({
@@ -200,7 +172,6 @@ scoreRoutes.get('/company/:companyId/latest', async (c) => {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
   }
 
-  // 窗口函数：DISTINCT ON 拿每个 company 最新一条
   const rows = await db
     .select()
     .from(leadScores)
@@ -212,14 +183,33 @@ scoreRoutes.get('/company/:companyId/latest', async (c) => {
     return c.json({ error: 'No score found for this company', code: 'NOT_FOUND' }, 404);
   }
 
-  const row = rows[0];
-  const data = {
-    ...row,
+  return c.json(serializeScore(rows[0]));
+});
+
+function serializeScore(row: typeof leadScores.$inferSelect): LeadScoreResponse {
+  const dims = row.dimensionBreakdown as LeadScoreResponse['dimensionBreakdown'];
+  const evidence = (row.evidence ?? []) as LeadScoreResponse['evidence'];
+  const buyerFit =
+    dims.industryFit + dims.hardwareProductFit + dims.pcbRelevance + dims.companyFit;
+
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    companyId: row.companyId,
     contactId: row.contactId ?? null,
+    score: row.score,
+    grade: row.grade as 'A' | 'B' | 'C',
+    reason: row.reason,
+    dimensionBreakdown: dims,
+    evidence,
+    buyerFit,
+    demandSignal: dims.demandSignal,
+    negativePenalty: dims.negativePenalty,
+    excluded: row.excluded,
+    modelVersion: row.modelVersion as LeadScoreResponse['modelVersion'],
     overriddenBy: row.overriddenBy ?? null,
     overrideReason: row.overrideReason ?? null,
+    finalGrade: row.finalGrade as 'A' | 'B' | 'C',
     createdAt: row.createdAt.toISOString(),
-  } as unknown as LeadScoreResponse;
-
-  return c.json(data);
-});
+  };
+}

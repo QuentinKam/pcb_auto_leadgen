@@ -95,14 +95,15 @@ describe('zod schemas parse valid input', () => {
       grade: 'A',
       reason: 'High industry match + PCB keywords on website',
       dimensionBreakdown: {
-        industry: 28,
-        pcb_keywords: 22,
-        role: 18,
-        size: 12,
-        reachability: 10,
+        industryFit: 13,
+        hardwareProductFit: 18,
+        pcbRelevance: 14,
+        companyFit: 9,
+        demandSignal: 28,
+        negativePenalty: 0,
       },
     });
-    expect(parsed.modelVersion).toBe('v1');
+    expect(parsed.modelVersion).toBe('v2');
     expect(parsed.grade).toBe('A');
   });
 
@@ -115,11 +116,12 @@ describe('zod schemas parse valid input', () => {
         grade: 'A',
         reason: 'x',
         dimensionBreakdown: {
-          industry: 30,
-          pcb_keywords: 25,
-          role: 20,
-          size: 15,
-          reachability: 10,
+          industryFit: 13,
+          hardwareProductFit: 18,
+          pcbRelevance: 14,
+          companyFit: 9,
+          demandSignal: 28,
+          negativePenalty: 0,
         },
       })
     ).toThrow();
@@ -128,11 +130,12 @@ describe('zod schemas parse valid input', () => {
   test('dimensionBreakdownSchema rejects weight exceeding max', () => {
     expect(() =>
       dimensionBreakdownSchema.parse({
-        industry: 31, // max 30
-        pcb_keywords: 0,
-        role: 0,
-        size: 0,
-        reachability: 0,
+        industryFit: 16, // max 15
+        hardwareProductFit: 0,
+        pcbRelevance: 0,
+        companyFit: 0,
+        demandSignal: 0,
+        negativePenalty: 0,
       })
     ).toThrow();
   });

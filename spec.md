@@ -40,8 +40,8 @@
 API 网关 (Hono on Bun)               ← 鉴权 / 限流 / 聚合
    ↕           ↕           ↕
 采集服务    打分服务    邮件服务     ← 三个独立微服务
-Crawlee     AI SDK      Resend
-Playwright  Claude      BullMQ
+Crawlee     自研 LLM 封装     Resend
+Playwright  Anthropic/DeepSeek  BullMQ
 BullMQ worker           Webhook
    ↕           ↕           ↕
 PostgreSQL 17 + Redis + Cloudflare R2 (共享)
@@ -51,7 +51,7 @@ PostgreSQL 17 + Redis + Cloudflare R2 (共享)
 - **看板前端 (dashboard)**：Hono on Bun + Vite 6 + React 19 + shadcn/ui，线索列表、统计、编辑、导出
 - **API 网关 (gateway)**：Hono on Bun，JWT 鉴权、速率限制、聚合 3 个微服务响应
 - **采集服务 (collector)**：Hono on Bun + Crawlee + Playwright，BullMQ worker 长任务爬取
-- **打分服务 (scorer)**：Hono on Bun + Vercel AI SDK + Claude，LLM 提取特征 + 规则打分
+- **打分服务 (scorer)**：Hono on Bun + 自研 LLM 封装（Anthropic / OpenAI 兼容双通道），LLM 提取特征 + 规则打分
 - **邮件服务 (mailer)**：Hono on Bun + Resend + BullMQ，发送调度 + webhook 回收状态
 
 ### 统一 Bun 栈的理由
@@ -106,7 +106,7 @@ pcb_auto_leadgen/
 - 数据库：**PostgreSQL 17**（本地 / Supabase 云端，多租户 row-level security）
 - 缓存/队列：Redis（Upstash 或自建）
 - 对象存储：Cloudflare R2（爬虫产物 HTML/PDF、附件）
-- LLM：Vercel AI SDK + Anthropic Claude（主）+ OpenAI（备）
+- LLM：自研 fetch 封装（Anthropic Messages API + OpenAI 兼容/DeepSeek 双通道），见 apps/scorer/src/content/llm.ts
 - 邮件：Resend（生产）+ Mailtrap（开发测试）
 - 爬虫：Crawlee + Playwright + Bright Data 代理 IP 池
 - 监控：Sentry（错误）+ Axiom（日志/指标）+ Better Stack（uptime）
@@ -116,8 +116,8 @@ pcb_auto_leadgen/
 - Monorepo：pnpm workspaces + Turborepo（构建缓存）
 - 代码规范：**Biome**（替代 ESLint+Prettier，更快）
 - Git Hook：**lefthook**（替代 husky，更快）
-- CI/CD：GitHub Actions → Fly.io（全栈统一部署）
-- 部署：Fly.io（每个 app 一个 app，共享 Volume）
+- CI/CD：GitHub Actions（构建 / 测试）
+- 部署：阿里云 ECS（PM2 常驻进程，共享机器增量部署，见 DEPLOY.md）
 
 ## 10. 法律合规清单
 - **LinkedIn**：人在环半自动化，**不做批量自动抓取/私信**；Sales Navigator 导出 CSV → 系统导入 → 文案人工复制粘贴发送
@@ -155,8 +155,8 @@ pcb_auto_leadgen/
 
 | 数据源 | 用途 | 类型 | 单条成本 |
 |---|---|---|---|
-| Google Search | 企业发现 | 免费（API 付费） | $0 |
-| Apollo.io | 企业 + 联系人 | 订阅 $49/mo | ~$0.05 |
+| Brave Search API | 企业发现 | 开源/按量（工厂可切换 provider） | 免费额度起 |
+| 自建官网 enrich（Crawlee + cheerio + 规则推断） | 企业 + 联系人 + 邮箱抽取 | 自建，零订阅 | $0 |
 | Crunchbase | 公司融资/规模 | 订阅 | ~$0.10 |
 | Hunter.io | 邮箱验证 | 订阅 $49/mo | ~$0.02 |
 | Clearbit | 公司 enrich | 订阅 | ~$0.05 |
@@ -164,11 +164,13 @@ pcb_auto_leadgen/
 | Resend | 邮件发送 | 按量 | $0.001/封 |
 | Bright Data / 代理 IP | 爬虫反检测 | 按流量 | ~$0.02/线索 |
 
+> 落地偏离：Apollo 已作废，改为自建官网 enrich（Crawlee + cheerio + 规则推断）；Crunchbase / Hunter / Clearbit 为可选商业数据源，采集目前仅依赖 Brave Search + 官网 enrich。
+
 ## 14. MVP 三阶段拆分
 
 ### P1（2-3 周）：采集 + 打分 + 看板
 - apps/dashboard：Hono + Vite + React 看板骨架，线索列表/筛选/A-B-C 统计/手动改级
-- apps/collector：Google + Apollo 数据源接入，Crawlee 爬企业官网
+- apps/collector：Brave 搜索 + 自建官网 enrich（Crawlee 爬企业官网 + 规则推断）
 - apps/scorer：打分模型 v1（规则加权）
 - apps/gateway：基础鉴权 + REST 路由聚合
 - 不发邮件，先验证线索质量
@@ -196,7 +198,7 @@ P1 阶段必需表：
 
 P2 阶段追加：
 - profiles（客户画像：业务摘要、产品类型、客户类型标签）
-- email_templates（模板 + A/B 版本 + 变量占位符）
+- content_drafts（内容草稿 + A/B 版本 + 变量占位符，落地表名，替代早期 email_templates 命名）
 
 P3 阶段追加：
 - email_campaigns（发送批次：域名、配额、状态）
@@ -209,7 +211,7 @@ P3 阶段追加：
 ## 16. 单位经济模型（每条 A 级线索）
 
 - LLM 调用（采集 + 画像 + 打分 + 生成）：~$0.10/线索
-- 数据源 API（Apollo + Hunter + Clearbit）：~$0.15/线索
+- 数据源 API（Brave Search + 自建 enrich，弃 Apollo；Hunter/Clearbit 可选）：~$0.05–0.15/线索
 - 邮件发送（5 次触达 × $0.001）：~$0.005/线索
 - 代理 IP + 爬虫：~$0.02/线索
 - 合计：~$0.30/线索
@@ -222,14 +224,18 @@ P3 阶段追加：
 
 ## 17. 部署成本（生产）
 
-| 资源 | 月成本 |
-|---|---|
-| Fly.io（5 个 app × shared-cpu-1x 256MB） | ~$25 |
-| Supabase（Postgres Pro） | $25 |
-| Upstash Redis | ~$10 |
-| Cloudflare R2 | ~$5 |
-| Resend | $20 起 |
-| Sentry + Axiom | $26 起 |
-| **合计** | **~$111/mo** |
+> 真实部署形态见 [DEPLOY.md](./DEPLOY.md)：阿里云 ECS 单机 + 宝塔面板 + 自建 PostgreSQL 13 + Redis 6 + nginx + PM2（非 Docker、非 Fly.io）。
+
+| 资源 | 月成本 | 说明 |
+|---|---|---|
+| 阿里云 ECS（2 vCPU / 1.8G / 40G，单机承载全部服务） | 按实际账单（估算约 $10–20） | 演示 + 生产两套实例同机 |
+| 自建 PostgreSQL 13 | $0 | 替代原 Supabase |
+| 自建 Redis 6（DB5/DB6 隔离） | $0 | 替代原 Upstash |
+| nginx + PM2 + 宝塔面板 | $0 | 免费开源 |
+| Resend（邮件发送，生产） | $20 起 | 按量付费 |
+| Bright Data 代理 IP（采集） | 按流量 ~$0.02/线索 | 可选，未配置则直连 |
+| **合计（不含代理流量）** | **~$30–40/mo** | |
+
+> 原方案中的 Cloudflare R2、Sentry、Axiom、Better Stack 暂未接入，成本未计入。
 
 种子客户 1 家可覆盖，5 家 SaaS 订户即盈利

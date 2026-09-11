@@ -93,6 +93,7 @@ export async function runCollect(
           emails: [],
           text: '',
           sources: ['brave'],
+          fieldSources: {},
         });
       }
     } catch (error) {
@@ -205,6 +206,18 @@ function applySignals(candidate: LeadCandidate, signals: SiteSignals): void {
   candidate.industrySignals = unique([...candidate.industrySignals, ...signals.industrySignals]);
   candidate.emails = unique([...candidate.emails, ...signals.emails]);
   candidate.text = [candidate.text, signals.text].filter(Boolean).join(' ');
+  candidate.fieldSources = mergeFieldSources(candidate.fieldSources, signals.fieldSources);
+}
+
+function mergeFieldSources(
+  a: Record<string, string[]>,
+  b: Record<string, string[]>
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    out[key] = unique([...(a[key] ?? []), ...(b[key] ?? [])]);
+  }
+  return out;
 }
 
 /** 用官网文本做规则推断（行业 / 规模 / 融资阶段） */

@@ -158,12 +158,17 @@ export function LeadsPage() {
                           )}
                         </td>
                         <td className="p-3 text-xs text-[var(--color-muted-foreground)]">
-                          I:{lead.dimensionBreakdown.industry} K:
-                          {lead.dimensionBreakdown.pcb_keywords} R:{lead.dimensionBreakdown.role} S:
-                          {lead.dimensionBreakdown.size} A:{lead.dimensionBreakdown.reachability}
+                          I:{lead.dimensionBreakdown.industryFit} H:
+                          {lead.dimensionBreakdown.hardwareProductFit} P:
+                          {lead.dimensionBreakdown.pcbRelevance} C:
+                          {lead.dimensionBreakdown.companyFit} D:
+                          {lead.dimensionBreakdown.demandSignal} N:
+                          {lead.dimensionBreakdown.negativePenalty}
                         </td>
                         <td className="p-3 text-xs">
-                          {lead.overriddenBy ? (
+                          {lead.excluded ? (
+                            <span className="text-red-600">已排除</span>
+                          ) : lead.overriddenBy ? (
                             <span className="text-orange-600" title={lead.overrideReason ?? ''}>
                               人工覆盖
                             </span>

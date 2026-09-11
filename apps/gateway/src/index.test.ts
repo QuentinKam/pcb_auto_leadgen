@@ -55,13 +55,14 @@ beforeAll(async () => {
       finalGrade: 'A',
       reason: 'Industry match + PCB keywords',
       dimensionBreakdown: {
-        industry: 28,
-        pcb_keywords: 22,
-        role: 18,
-        size: 12,
-        reachability: 10,
+        industryFit: 13,
+        hardwareProductFit: 18,
+        pcbRelevance: 14,
+        companyFit: 9,
+        demandSignal: 28,
+        negativePenalty: 0,
       },
-      modelVersion: 'v1',
+      modelVersion: 'v2',
     })
     .returning();
   if (!score) throw new Error('failed to insert lead_score');
@@ -149,11 +150,12 @@ describe('Gateway API', () => {
     expect(body.score).toBe(82);
     expect(body.grade).toBe('A');
     expect(body.dimensionBreakdown).toEqual({
-      industry: 28,
-      pcb_keywords: 22,
-      role: 18,
-      size: 12,
-      reachability: 10,
+      industryFit: 13,
+      hardwareProductFit: 18,
+      pcbRelevance: 14,
+      companyFit: 9,
+      demandSignal: 28,
+      negativePenalty: 0,
     });
   });
 

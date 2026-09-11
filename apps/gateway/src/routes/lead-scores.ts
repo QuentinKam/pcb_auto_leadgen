@@ -57,14 +57,8 @@ leadScoresRoutes.get(
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 
-    // 序列化：Drizzle 返回 Date + 推导 grade 为 string，需断言到 zod 推导的字面量联合
-    const data = rows.map((r) => ({
-      ...r,
-      contactId: r.contactId ?? null,
-      overriddenBy: r.overriddenBy ?? null,
-      overrideReason: r.overrideReason ?? null,
-      createdAt: r.createdAt.toISOString(),
-    })) as unknown as LeadScoreResponse[];
+    // 序列化：Drizzle 返回 Date + jsonb，需补充 v2 模型的 buyerFit/demandSignal/negativePenalty/evidence/excluded
+    const data = rows.map((r) => serializeLeadScore(r));
 
     return c.json({
       data,
@@ -96,15 +90,7 @@ leadScoresRoutes.get('/:id', async (c) => {
     return c.json({ error: 'Lead score not found', code: 'NOT_FOUND' }, 404);
   }
 
-  const data = {
-    ...row,
-    contactId: row.contactId ?? null,
-    overriddenBy: row.overriddenBy ?? null,
-    overrideReason: row.overrideReason ?? null,
-    createdAt: row.createdAt.toISOString(),
-  } as unknown as LeadScoreResponse;
-
-  return c.json(data);
+  return c.json(serializeLeadScore(row));
 });
 
 /**
@@ -158,6 +144,8 @@ leadScoresRoutes.patch(
         grade: original.grade,
         reason: original.reason,
         dimensionBreakdown: original.dimensionBreakdown,
+        evidence: original.evidence,
+        excluded: original.excluded,
         modelVersion: original.modelVersion,
         overriddenBy: userId ?? null,
         overrideReason,
@@ -181,14 +169,38 @@ leadScoresRoutes.patch(
       note: `Overridden by ${userId}`,
     });
 
-    const data = {
-      ...newScore,
-      contactId: newScore.contactId ?? null,
-      overriddenBy: newScore.overriddenBy ?? null,
-      overrideReason: newScore.overrideReason ?? null,
-      createdAt: newScore.createdAt.toISOString(),
-    } as unknown as LeadScoreResponse;
+    const data = serializeLeadScore(newScore);
 
     return c.json(data, 201);
   }
 );
+
+/**
+ * 序列化 lead_scores 行为 v2 模型响应：补充 buyerFit/demandSignal/negativePenalty/evidence/excluded。
+ */
+function serializeLeadScore(row: typeof leadScores.$inferSelect): LeadScoreResponse {
+  const dims = row.dimensionBreakdown as LeadScoreResponse['dimensionBreakdown'];
+  const evidence = (row.evidence ?? []) as LeadScoreResponse['evidence'];
+  const buyerFit = dims.industryFit + dims.hardwareProductFit + dims.pcbRelevance + dims.companyFit;
+
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    companyId: row.companyId,
+    contactId: row.contactId ?? null,
+    score: row.score,
+    grade: row.grade as 'A' | 'B' | 'C',
+    reason: row.reason,
+    dimensionBreakdown: dims,
+    evidence,
+    buyerFit,
+    demandSignal: dims.demandSignal,
+    negativePenalty: dims.negativePenalty,
+    excluded: row.excluded,
+    modelVersion: row.modelVersion as LeadScoreResponse['modelVersion'],
+    overriddenBy: row.overriddenBy ?? null,
+    overrideReason: row.overrideReason ?? null,
+    finalGrade: row.finalGrade as 'A' | 'B' | 'C',
+    createdAt: row.createdAt.toISOString(),
+  };
+}

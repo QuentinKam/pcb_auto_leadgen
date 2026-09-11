@@ -125,14 +125,20 @@ function companyCreatedAt(idx: number, total: number): Date {
   return new Date(NOW_MS - (total - idx) * 30_000);
 }
 
-const DIM_CAPS = { industry: 28, pcb_keywords: 22, role: 18, size: 12, reachability: 8 } as const;
-const DIM_TOTAL = 88;
+const DIM_CAPS = {
+  industryFit: 15,
+  hardwareProductFit: 20,
+  pcbRelevance: 15,
+  companyFit: 10,
+  demandSignal: 30,
+} as const;
+const DIM_TOTAL = 90;
 
-/** 把总分确定性地拆成 5 个维度（各维不超上限，总和等于总分） */
+/** 把总分确定性地拆成 6 个维度（各维不超上限，负向惩罚恒为 0，总和约等于总分） */
 function makeDims(score: number, jitterSeed: number) {
   const keys = Object.keys(DIM_CAPS) as Array<keyof typeof DIM_CAPS>;
   const out: Record<string, number> = {};
-  let remaining = score;
+  let remaining = Math.min(score, DIM_TOTAL);
   keys.forEach((key, i) => {
     if (i === keys.length - 1) {
       out[key] = Math.max(0, Math.min(DIM_CAPS[key], remaining));
@@ -145,11 +151,12 @@ function makeDims(score: number, jitterSeed: number) {
     remaining -= alloc;
   });
   return {
-    industry: out.industry,
-    pcb_keywords: out.pcb_keywords,
-    role: out.role,
-    size: out.size,
-    reachability: out.reachability,
+    industryFit: out.industryFit,
+    hardwareProductFit: out.hardwareProductFit,
+    pcbRelevance: out.pcbRelevance,
+    companyFit: out.companyFit,
+    demandSignal: out.demandSignal,
+    negativePenalty: 0,
   };
 }
 
@@ -338,7 +345,7 @@ async function seed(): Promise<void> {
         grade: seedCompany.grade,
         reason: seedCompany.reason,
         dimensionBreakdown: dims,
-        modelVersion: 'v1',
+        modelVersion: 'v2',
         finalGrade: seedCompany.grade,
         createdAt: daysAgo(20 - idx * 0.5, 8),
       })
@@ -355,7 +362,7 @@ async function seed(): Promise<void> {
         grade: seedCompany.grade,
         reason: seedCompany.reason,
         dimensionBreakdown: dims,
-        modelVersion: 'v1',
+        modelVersion: 'v2',
         overriddenBy: USER_ID,
         overrideReason: seedCompany.override.reason,
         finalGrade: seedCompany.override.finalGrade,

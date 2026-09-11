@@ -11,6 +11,8 @@ export interface SiteSignals {
   emails: string[];
   text: string;
   wordCount: number;
+  /** 字段 → 来源 URL 列表，用于 Signal-level Evidence 的 sourceUrl 绑定 */
+  fieldSources: Record<string, string[]>;
 }
 
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
@@ -43,6 +45,7 @@ export function emptySignals(): SiteSignals {
     emails: [],
     text: '',
     wordCount: 0,
+    fieldSources: {},
   };
 }
 
@@ -59,17 +62,42 @@ export function extractSignals(html: string, url: string): SiteSignals {
   const text = normalizeText($('body').text());
   const emails = extractEmails($, text);
 
+  const about = extractAbout($);
+  const products = extractList($, 'product');
+  const services = extractList($, 'service');
+
   return {
     title,
     description,
-    about: extractAbout($),
-    products: extractList($, 'product'),
-    services: extractList($, 'service'),
+    about,
+    products,
+    services,
     industrySignals: inferIndustrySignals(text),
     emails,
     text,
     wordCount: text ? text.split(/\s+/).length : 0,
+    fieldSources: buildFieldSources({ description, about, products, services, emails }, url),
   };
+}
+
+/** 把每个非空字段映射到当前页面 URL（Signal-level Evidence 的来源） */
+function buildFieldSources(
+  fields: {
+    description: string | null;
+    about: string | null;
+    products: string[];
+    services: string[];
+    emails: string[];
+  },
+  url: string
+): Record<string, string[]> {
+  const sources: Record<string, string[]> = {};
+  if (fields.description) sources.description = [url];
+  if (fields.about) sources.about = [url];
+  if (fields.products.length > 0) sources.products = [url];
+  if (fields.services.length > 0) sources.services = [url];
+  if (fields.emails.length > 0) sources.emails = [url];
+  return sources;
 }
 
 /** 合并两次抓取结果：标量取首个非空，数组去重合并，文本累加 */
@@ -84,7 +112,19 @@ export function mergeSignals(a: SiteSignals, b: SiteSignals): SiteSignals {
     emails: unique([...a.emails, ...b.emails]),
     text: [a.text, b.text].filter(Boolean).join(' '),
     wordCount: a.wordCount + b.wordCount,
+    fieldSources: mergeFieldSources(a.fieldSources, b.fieldSources),
   };
+}
+
+function mergeFieldSources(
+  a: Record<string, string[]>,
+  b: Record<string, string[]>
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    out[key] = unique([...(a[key] ?? []), ...(b[key] ?? [])]);
+  }
+  return out;
 }
 
 function extractAbout($: cheerio.CheerioAPI): string | null {

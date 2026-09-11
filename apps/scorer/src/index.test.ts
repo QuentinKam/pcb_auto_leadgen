@@ -1,13 +1,13 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { db, pool, tenants, users, companies, contacts, leadScores } from '@pcb/db';
+import { db, pool, tenants, companies, contacts, leadScores } from '@pcb/db';
 
 import {
   scoreIndustry,
   scoreKeywords,
-  scoreRole,
-  scoreSize,
-  scoreReachability,
+  scoreHardwareFit,
+  scoreDemand,
+  scoreNegative,
   scoreLead,
   SCORING_MODEL_VERSION,
 } from './scoring/index.ts';
@@ -16,7 +16,6 @@ import {
 const appPromise = import('./index.ts').then((m) => m.app);
 
 let testTenantId: string;
-let testUserId: string;
 let testCompanyId: string;
 let testContactId: string;
 
@@ -27,18 +26,6 @@ beforeAll(async () => {
     .returning();
   if (!tenant) throw new Error('failed to insert tenant');
   testTenantId = tenant.id;
-
-  const [user] = await db
-    .insert(users)
-    .values({
-      tenantId: testTenantId,
-      email: `scorer-test-${Date.now()}@example.com`,
-      name: 'Scorer Tester',
-      role: 'admin',
-    })
-    .returning();
-  if (!user) throw new Error('failed to insert user');
-  testUserId = user.id;
 });
 
 afterAll(async () => {
@@ -48,242 +35,193 @@ afterAll(async () => {
   await pool.end();
 });
 
-// ============ 单元测试：5 个维度打分 ============
-describe('scoring dimensions (unit)', () => {
-  test('scoreIndustry: target industry gets full 30', () => {
-    const r = scoreIndustry({ industry: 'industrial_equipment' });
-    expect(r.score).toBe(30);
+// ============ 单元测试：Industry Fit (0-15) ============
+describe('scoreIndustry (v2, 0-15)', () => {
+  test('target industry gets full 15', () => {
+    const r = scoreIndustry({ industry: 'industrial_automation' });
+    expect(r.score).toBe(15);
     expect(r.matched).toBe('target');
   });
 
-  test('scoreIndustry: related industry gets 15', () => {
+  test('telecom is now a target (prompt §7)', () => {
     const r = scoreIndustry({ industry: 'telecom' });
     expect(r.score).toBe(15);
+  });
+
+  test('related industry gets 8', () => {
+    const r = scoreIndustry({ industry: 'semiconductor' });
+    expect(r.score).toBe(8);
     expect(r.matched).toBe('related');
   });
 
-  test('scoreIndustry: unrelated industry gets 0', () => {
+  test('unrelated industry gets 0', () => {
     const r = scoreIndustry({ industry: 'fashion_retail' });
     expect(r.score).toBe(0);
     expect(r.matched).toBe('none');
   });
 
-  test('scoreIndustry: empty industry gets 0', () => {
+  test('empty industry gets 0', () => {
     const r = scoreIndustry({ industry: null });
     expect(r.score).toBe(0);
   });
+});
 
-  test('scoreKeywords: 6+ hits gets full 25', () => {
+// ============ 单元测试：PCB Relevance (0-15) ============
+describe('scoreKeywords (v2, PCB relevance 0-15, context-aware)', () => {
+  test('many PCB hits gets 15', () => {
     const r = scoreKeywords({
-      description:
-        'We design PCB and PCBA. Our PCB assembly service covers SMT and through-hole. We accept Gerber files.',
+      description: 'We use PCB, PCBA, SMT, through-hole, Gerber and BOM in our controllers.',
       rawPayload: null,
     });
-    expect(r.score).toBe(25);
+    expect(r.score).toBe(15);
     expect(r.hitCount).toBeGreaterThanOrEqual(6);
-    expect(r.matchedKeywords).toContain('pcb');
+    expect(r.manufacturerContext).toBe(false);
   });
 
-  test('scoreKeywords: 3-5 hits gets 18', () => {
+  test('manufacturer context zeroes PCB relevance', () => {
     const r = scoreKeywords({
-      description: 'We make PCB and PCBA. Also do SMT.',
+      description: 'We are a PCB manufacturer offering PCB assembly service.',
       rawPayload: null,
     });
-    expect(r.score).toBe(18);
+    expect(r.score).toBe(0);
+    expect(r.manufacturerContext).toBe(true);
   });
 
-  test('scoreKeywords: 1-2 hits gets 10', () => {
-    const r = scoreKeywords({ description: 'We use PCB sometimes.', rawPayload: null });
-    expect(r.score).toBe(10);
-  });
-
-  test('scoreKeywords: no hits gets 0', () => {
+  test('no hits gets 0', () => {
     const r = scoreKeywords({ description: 'We sell shoes online.', rawPayload: null });
     expect(r.score).toBe(0);
     expect(r.matchedKeywords.length).toBe(0);
   });
 
-  test('scoreKeywords: scans raw_payload fields too', () => {
+  test('scans raw_payload fields too', () => {
     const r = scoreKeywords({
       description: '',
       rawPayload: {
-        about: 'We do PCB assembly and PCBA fabrication.',
-        products: ['SMT service', 'reflow oven'],
+        about: 'We use PCB assembly and PCBA in our products.',
+        products: ['SMT controller', 'reflow controller'],
       },
     });
     expect(r.hitCount).toBeGreaterThanOrEqual(3);
   });
+});
 
-  test('scoreRole: high authority title gets 20', () => {
-    const r = scoreRole({ title: 'Procurement Manager' });
-    expect(r.score).toBe(20);
-    expect(r.authority).toBe('high');
-  });
-
-  test('scoreRole: CTO gets 20', () => {
-    const r = scoreRole({ title: 'CTO' });
-    expect(r.score).toBe(20);
-  });
-
-  test('scoreRole: medium authority gets 10', () => {
-    const r = scoreRole({ title: 'Product Manager' });
-    expect(r.score).toBe(10);
-    expect(r.authority).toBe('medium');
-  });
-
-  test('scoreRole: recruiter gets 0 (excluded)', () => {
-    const r = scoreRole({ title: 'Technical Recruiter' });
-    expect(r.score).toBe(0);
-    expect(r.authority).toBe('none');
-  });
-
-  test('scoreRole: sales engineer gets 0 (sales wins over engineer)', () => {
-    const r = scoreRole({ title: 'Sales Engineer' });
-    expect(r.score).toBe(0);
-    expect(r.authority).toBe('none');
-  });
-
-  test('scoreRole: null contact gets 0', () => {
-    const r = scoreRole(null);
-    expect(r.score).toBe(0);
-  });
-
-  test('scoreSize: 51-200 gets full 15', () => {
-    const r = scoreSize({ sizeBucket: '51-200', employeeCount: 120 });
-    expect(r.score).toBe(15);
-  });
-
-  test('scoreSize: 201-500 gets full 15', () => {
-    const r = scoreSize({ sizeBucket: '201-500', employeeCount: 300 });
-    expect(r.score).toBe(15);
-  });
-
-  test('scoreSize: 11-50 gets 10', () => {
-    const r = scoreSize({ sizeBucket: '11-50', employeeCount: 30 });
-    expect(r.score).toBe(10);
-  });
-
-  test('scoreSize: 5000+ gets 0 (in-house likely)', () => {
-    const r = scoreSize({ sizeBucket: '5000+', employeeCount: 8000 });
-    expect(r.score).toBe(0);
-  });
-
-  test('scoreSize: fallback to employeeCount when no bucket', () => {
-    const r = scoreSize({ sizeBucket: null, employeeCount: 250 });
-    expect(r.score).toBe(15);
-  });
-
-  test('scoreReachability: valid email + LinkedIn gets 10', () => {
-    const r = scoreReachability({
-      emailVerified: 'valid',
-      linkedinUrl: 'https://linkedin.com/in/x',
+// ============ 单元测试：Hardware/Product Fit (0-20) ============
+describe('scoreHardwareFit (0-20)', () => {
+  test('multiple hardware signals get high score', () => {
+    const r = scoreHardwareFit({
+      description: 'We build industrial controllers, sensors and IoT devices.',
+      rawPayload: null,
     });
-    expect(r.score).toBe(10);
+    expect(r.score).toBe(16);
+    expect(r.matchedTerms).toContain('controller');
   });
 
-  test('scoreReachability: valid email no LinkedIn gets 7', () => {
-    const r = scoreReachability({ emailVerified: 'valid', linkedinUrl: null });
-    expect(r.score).toBe(7);
-  });
-
-  test('scoreReachability: unknown email + LinkedIn gets 5', () => {
-    const r = scoreReachability({
-      emailVerified: 'unknown',
-      linkedinUrl: 'https://linkedin.com/in/y',
-    });
-    expect(r.score).toBe(5);
-  });
-
-  test('scoreReachability: invalid email gets 0', () => {
-    const r = scoreReachability({
-      emailVerified: 'invalid',
-      linkedinUrl: 'https://linkedin.com/in/z',
-    });
-    expect(r.score).toBe(0);
-  });
-
-  test('scoreReachability: null contact gets 0', () => {
-    const r = scoreReachability(null);
+  test('no hardware signals gets 0', () => {
+    const r = scoreHardwareFit({ description: 'We provide consulting services.', rawPayload: null });
     expect(r.score).toBe(0);
   });
 });
 
-// ============ 聚合测试：scoreLead 整体 ============
-describe('scoreLead aggregation', () => {
-  test('perfect lead (all dimensions max) gets 100 and grade A', () => {
-    const r = scoreLead(
-      {
-        industry: 'hardware',
-        description: 'We design PCB, PCBA, do SMT, through-hole, accept Gerber, BOM.',
-        rawPayload: null,
-        sizeBucket: '51-200',
-        employeeCount: 150,
-      },
-      {
-        title: 'Procurement Manager',
-        emailVerified: 'valid',
-        linkedinUrl: 'https://linkedin.com/in/ceo',
-      }
-    );
-    expect(r.score).toBe(100);
-    expect(r.grade).toBe('A');
-    expect(r.modelVersion).toBe(SCORING_MODEL_VERSION);
-    expect(r.dimensionBreakdown).toEqual({
-      industry: 30,
-      pcb_keywords: 25,
-      role: 20,
-      size: 15,
-      reachability: 10,
+// ============ 单元测试：Demand Signal (0-30) ============
+describe('scoreDemand (0-30, context-aware)', () => {
+  test('Tier 1 supplier search is strong demand', () => {
+    const r = scoreDemand({
+      description: 'We are looking for a PCB supplier for our new controller.',
+      rawPayload: null,
     });
-    expect(r.reason).toContain('[Industry 30/30]');
-    expect(r.reason).toContain('[Keywords 25/25]');
+    expect(r.tier).toBe(1);
+    expect(r.score).toBeGreaterThanOrEqual(25);
   });
 
-  test('poor lead gets low score and grade C', () => {
-    const r = scoreLead(
-      {
-        industry: 'fashion_retail',
-        description: 'We sell clothes online.',
-        rawPayload: null,
-        sizeBucket: '1-10',
-        employeeCount: 5,
-      },
-      { title: 'Marketing Intern', emailVerified: 'invalid', linkedinUrl: null }
-    );
-    expect(r.score).toBeLessThanOrEqual(20);
-    expect(r.grade).toBe('C');
+  test('service provider is NOT demand', () => {
+    const r = scoreDemand({
+      description: 'We help companies find PCB suppliers.',
+      rawPayload: null,
+    });
+    expect(r.score).toBe(0);
+    expect(r.tier).toBeNull();
   });
 
-  test('medium lead gets grade B', () => {
-    const r = scoreLead(
-      {
-        industry: 'telecom',
-        description: 'We use PCB in our routers.',
-        rawPayload: null,
-        sizeBucket: '201-500',
-        employeeCount: 250,
-      },
-      { title: 'Product Manager', emailVerified: 'valid', linkedinUrl: null }
-    );
-    // industry 15 + keywords 10 + role 10 + size 15 + reachability 7 = 57
-    expect(r.score).toBe(57);
-    expect(r.grade).toBe('B');
+  test('hiring hardware engineer is Tier 2', () => {
+    const r = scoreDemand({
+      description: 'We are hiring a hardware engineer for our electronics team.',
+      rawPayload: null,
+    });
+    expect(r.tier).toBe(2);
+  });
+});
+
+// ============ 单元测试：Negative Signal (0-10) ============
+describe('scoreNegative (0-10, soft/hard)', () => {
+  test('PCB manufacturer is hard negative (excluded)', () => {
+    const r = scoreNegative({ description: 'We are a PCB manufacturer.', rawPayload: null });
+    expect(r.excluded).toBe(true);
+    expect(r.penalty).toBe(10);
   });
 
-  test('threshold A/B: score 75 is A', () => {
-    // industry 30 + keywords 25 + role 20 + size 0 + reachability 0 = 75
-    const r = scoreLead(
-      {
-        industry: 'hardware',
-        description: 'We design PCB, PCBA, SMT, through-hole, Gerber, BOM, reflow.',
-        rawPayload: null,
-        sizeBucket: null,
-        employeeCount: null,
-      },
-      { title: 'Procurement Manager', emailVerified: 'invalid', linkedinUrl: null }
-    );
-    expect(r.score).toBe(75);
+  test('SaaS is soft negative (penalty only)', () => {
+    const r = scoreNegative({ description: 'We are a SaaS company.', rawPayload: null });
+    expect(r.excluded).toBe(false);
+    expect(r.penalty).toBe(4);
+  });
+
+  test('hardware company has no negative', () => {
+    const r = scoreNegative({ description: 'We build industrial robots.', rawPayload: null });
+    expect(r.penalty).toBe(0);
+    expect(r.excluded).toBe(false);
+  });
+});
+
+// ============ 聚合测试：scoreLead（v2 模型） ============
+describe('scoreLead aggregation (v2)', () => {
+  const buyerCompany = {
+    industry: 'industrial_automation',
+    description:
+      'We design industrial controllers, sensors and robots. We use PCB, PCBA and SMT in our products. We are launching a new hardware product and are looking for a PCB supplier.',
+    rawPayload: {
+      products: ['industrial controller', 'sensor module', 'iot gateway'],
+      sourcesByField: { products: ['https://acme.example.com/products'] },
+    },
+    sizeBucket: '51-200',
+    employeeCount: 150,
+    fundingStage: 'a',
+  };
+
+  test('qualified buyer gets grade A and not excluded', () => {
+    const r = scoreLead(buyerCompany);
     expect(r.grade).toBe('A');
+    expect(r.score).toBeGreaterThanOrEqual(75);
+    expect(r.excluded).toBe(false);
+    expect(r.buyerFit).toBeGreaterThanOrEqual(45);
+    expect(r.demandSignal).toBeGreaterThanOrEqual(25);
+    expect(r.dimensionBreakdown.demandSignal).toBe(r.demandSignal);
+    expect(r.evidence.length).toBeGreaterThan(0);
+    expect(r.modelVersion).toBe(SCORING_MODEL_VERSION);
+  });
+
+  test('PCB manufacturer is excluded regardless of score', () => {
+    const r = scoreLead({
+      industry: 'electronics_manufacturing',
+      description: 'We are a PCB manufacturer and EMS provider.',
+      rawPayload: null,
+      sizeBucket: '51-200',
+      employeeCount: 150,
+      fundingStage: null,
+    });
+    expect(r.excluded).toBe(true);
+  });
+
+  test('pure software company gets low score and grade C', () => {
+    const r = scoreLead({
+      industry: 'fashion_retail',
+      description: 'We sell clothes online.',
+      rawPayload: null,
+      sizeBucket: '1-10',
+      employeeCount: 5,
+      fundingStage: null,
+    });
+    expect(r.grade).toBe('C');
+    expect(r.score).toBeLessThan(50);
   });
 });
 
@@ -313,19 +251,19 @@ describe('Scorer API (e2e)', () => {
     expect(res.status).toBe(404);
   });
 
-  test('POST /score/company/:id creates a score in DB', async () => {
-    // 先创建 company + contact
+  test('POST /score/company/:id creates a v2 score in DB', async () => {
     const [company] = await db
       .insert(companies)
       .values({
         tenantId: testTenantId,
         name: 'ACME PCB Buyer',
         website: 'https://acme-pcb.example.com',
-        industry: 'hardware',
+        industry: 'industrial_automation',
         sizeBucket: '51-200',
         employeeCount: 150,
+        fundingStage: 'a',
         description:
-          'We design PCB and PCBA. Our PCB assembly service covers SMT and through-hole. We accept Gerber files and BOM.',
+          'We design industrial controllers and sensors. We use PCB, PCBA and SMT. We are launching a new hardware product.',
       })
       .returning();
     if (!company) throw new Error('failed to insert company');
@@ -346,7 +284,6 @@ describe('Scorer API (e2e)', () => {
     if (!contact) throw new Error('failed to insert contact');
     testContactId = contact.id;
 
-    // 调用打分 API
     const app = await appPromise;
     const res = await app.request(`/score/company/${testCompanyId}`, {
       method: 'POST',
@@ -359,31 +296,25 @@ describe('Scorer API (e2e)', () => {
       grade: string;
       finalGrade: string;
       modelVersion: string;
+      excluded: boolean;
+      evidence: unknown[];
       dimensionBreakdown: Record<string, number>;
     };
 
     expect(body.companyId).toBe(testCompanyId);
-    expect(body.score).toBe(100);
-    expect(body.grade).toBe('A');
-    expect(body.finalGrade).toBe('A');
-    expect(body.modelVersion).toBe('v1');
-    expect(body.dimensionBreakdown).toEqual({
-      industry: 30,
-      pcb_keywords: 25,
-      role: 20,
-      size: 15,
-      reachability: 10,
-    });
+    expect(body.modelVersion).toBe('v2');
+    expect(body.excluded).toBe(false);
+    expect(Array.isArray(body.evidence)).toBe(true);
+    expect(body.dimensionBreakdown.industryFit).toBeGreaterThanOrEqual(0);
+    expect(body.dimensionBreakdown.demandSignal).toBeGreaterThanOrEqual(0);
 
-    // 验证 DB 写入
     const [row] = await db
       .select()
       .from(leadScores)
       .where(eq(leadScores.companyId, testCompanyId))
       .limit(1);
     expect(row).toBeDefined();
-    expect(row!.score).toBe(100);
-    expect(row!.grade).toBe('A');
+    expect(row!.modelVersion).toBe('v2');
   });
 
   test('GET /score/company/:id/latest returns latest score', async () => {
@@ -392,9 +323,9 @@ describe('Scorer API (e2e)', () => {
       headers: { 'X-Tenant-Id': testTenantId },
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { companyId: string; grade: string };
+    const body = (await res.json()) as { companyId: string; modelVersion: string };
     expect(body.companyId).toBe(testCompanyId);
-    expect(body.grade).toBe('A');
+    expect(body.modelVersion).toBe('v2');
   });
 
   test('GET /score/company/:id/latest returns 404 for unknown', async () => {
@@ -406,7 +337,6 @@ describe('Scorer API (e2e)', () => {
   });
 
   test('POST /score/batch processes multiple companies', async () => {
-    // 加一条未打分 company
     const [company2] = await db
       .insert(companies)
       .values({
@@ -434,13 +364,10 @@ describe('Scorer API (e2e)', () => {
       skipped: number;
       results: Array<{ companyId: string; grade: string; status: string }>;
     };
-    // 至少处理 1 个（company2），已有的会跳过
     expect(body.processed).toBeGreaterThanOrEqual(1);
-    expect(body.results.length).toBeGreaterThanOrEqual(2); // 包含 skipped
+    expect(body.results.length).toBeGreaterThanOrEqual(2);
     const found = body.results.find((r) => r.companyId === company2.id);
     expect(found).toBeDefined();
     expect(found!.status).toBe('created');
-    // telecom 15 + keywords 10 + role 0 + size 10 + reachability 3 = 38 → C
-    expect(found!.grade).toBe('C');
   });
 });

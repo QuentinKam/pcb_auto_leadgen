@@ -6,6 +6,7 @@ import {
   integer,
   text,
   jsonb,
+  boolean,
   foreignKey,
   index,
   uniqueIndex,
@@ -18,10 +19,12 @@ import { contacts } from './contacts.ts';
 /**
  * 打分记录
  * 每次打分都生成一条新记录（不 in-place 更新），方便追溯模型版本演化
- * score: 0-100
+ * score: 0-100 = clamp(buyerFit + demandSignal - negativePenalty, 0, 100)
  * grade: A (>=75) / B (50-74) / C (<50)
- * modelVersion: v1 规则加权 / v2 LLM 打分 / v3 微调
- * dimensionBreakdown: { industry: 28, pcb_keywords: 22, role: 18, size: 12, reachability: 8 }
+ * modelVersion: v1 规则加权 / v2 PCB 领域对齐 / v3 LLM 打分
+ * dimensionBreakdown: { industryFit, hardwareProductFit, pcbRelevance, companyFit, demandSignal, negativePenalty }
+ * evidence: Signal-level 证据数组（docs/pcb-alignment.md §9）
+ * excluded: hard negative（如 PCB 制造商自身）时置 true，Lead 不进入主要销售池
  */
 export const leadScores = pgTable(
   'lead_scores',
@@ -34,7 +37,9 @@ export const leadScores = pgTable(
     grade: varchar('grade', { length: 1 }).notNull(), // A / B / C
     reason: text('reason').notNull(),
     dimensionBreakdown: jsonb('dimension_breakdown').notNull(),
-    modelVersion: varchar('model_version', { length: 20 }).notNull().default('v1'),
+    evidence: jsonb('evidence'),
+    excluded: boolean('excluded').notNull().default(false),
+    modelVersion: varchar('model_version', { length: 20 }).notNull().default('v2'),
     overriddenBy: uuid('overridden_by'), // 人工覆盖的 user_id（指向 users 表）
     overrideReason: text('override_reason'),
     finalGrade: varchar('final_grade', { length: 1 }).notNull(), // 可能与 grade 不同（人工覆盖后）

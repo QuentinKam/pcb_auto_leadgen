@@ -26,12 +26,24 @@ export interface LeadScoreItem {
   grade: 'A' | 'B' | 'C';
   reason: string;
   dimensionBreakdown: {
-    industry: number;
-    pcb_keywords: number;
-    role: number;
-    size: number;
-    reachability: number;
+    industryFit: number;
+    hardwareProductFit: number;
+    pcbRelevance: number;
+    companyFit: number;
+    demandSignal: number;
+    negativePenalty: number;
   };
+  evidence: Array<{
+    signalType: string;
+    description: string;
+    snippet?: string;
+    sourceUrl?: string;
+    confidence: number;
+  }>;
+  buyerFit: number;
+  demandSignal: number;
+  negativePenalty: number;
+  excluded: boolean;
   modelVersion: string;
   overriddenBy: string | null;
   overrideReason: string | null;

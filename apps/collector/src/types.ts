@@ -17,4 +17,6 @@ export interface LeadCandidate {
   /** 官网正文汇总，用于规则推断（不落库） */
   text: string;
   sources: string[];
+  /** 字段 → 来源 URL 列表（Signal-level Evidence 来源） */
+  fieldSources: Record<string, string[]>;
 }

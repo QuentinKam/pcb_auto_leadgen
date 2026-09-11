@@ -48,7 +48,7 @@ describe('db smoke test', () => {
     companyId = company.id;
     expect(company.rawPayload).toBeNull();
 
-    // 4. score (规则加权 v1)
+    // 4. score (v2 领域对齐)
     const [score] = await db
       .insert(leadScores)
       .values({
@@ -58,25 +58,27 @@ describe('db smoke test', () => {
         score: 82,
         grade: 'A',
         finalGrade: 'A',
-        reason: 'Industry: industrial_equipment (+30); PCB keyword density high (+22); ...',
+        reason: 'Industry fit + hardware product + PCB relevance',
         dimensionBreakdown: {
-          industry: 28,
-          pcb_keywords: 22,
-          role: 0,
-          size: 12,
-          reachability: 20,
+          industryFit: 13,
+          hardwareProductFit: 18,
+          pcbRelevance: 14,
+          companyFit: 9,
+          demandSignal: 28,
+          negativePenalty: 0,
         },
-        modelVersion: 'v1',
+        modelVersion: 'v2',
       })
       .returning();
     expect(score.score).toBe(82);
     expect(score.grade).toBe('A');
     expect(score.dimensionBreakdown).toEqual({
-      industry: 28,
-      pcb_keywords: 22,
-      role: 0,
-      size: 12,
-      reachability: 20,
+      industryFit: 13,
+      hardwareProductFit: 18,
+      pcbRelevance: 14,
+      companyFit: 9,
+      demandSignal: 28,
+      negativePenalty: 0,
     });
   });
 
