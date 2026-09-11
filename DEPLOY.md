@@ -11,11 +11,11 @@
 | 环境 | 地址 | 状态 |
 |---|---|---|
 | **演示环境** | http://47.251.97.20:8090 | ✅ 已放行，公网可访问 |
-| **生产环境** | http://47.251.97.20:8091 | 🔐 已部署 + **已加 basic auth**，安全组待放行 |
+| **生产环境** | http://47.251.97.20:8091 | 🔐 已部署 + 已加 basic auth + **已放行，公网可访问** |
 
 > 生产环境需要登录：用户名 `pcbadmin`，密码见服务器 `/root/.pcb_basicauth_pass`（详见 §7）。
 
-安全组放行前，也可用 SSH 隧道访问（隧道访问同样需要 basic auth）：
+如需临时绕过公网（或用 SSH 隧道代替直连），可走隧道访问（同样需要 basic auth）：
 
 ```bash
 ssh -i ~/.ssh/new_aliyun.pem -N -L 8091:127.0.0.1:8091 root@47.251.97.20
@@ -255,7 +255,37 @@ sed -i 's#^FACTS_JSON_PATH=.*#FACTS_JSON_PATH=/opt/pcb-leadgen/facts/facts.json#
 | 端口 | 用途 | 状态 |
 |---|---|---|
 | 8090 | 演示环境 | ✅ 已放行 |
-| 8091 | 生产环境（basic auth 已就绪） | ⏳ 待放行 —— 加上 8091/TCP 0.0.0.0/0 即可 |
+| 8091 | 生产环境（basic auth 已就绪） | ✅ 已放行（2026-09-11 外部探测返回 401，确认公网可达） |
 
 > 该机器没有域名解析过来（`rakuto.store` 指向 Namecheap 停放页，`www` 指向 Vercel），
 > 因此只能用 `IP:端口` 访问；若要用域名 + HTTPS，需要额外做解析与 ICP 备案。
+
+---
+
+## 11. PM2 日志轮转（已配置 ✅ 2026-09-11）
+
+此前 PM2 日志无轮转，长期运行会撑爆磁盘。已装 `pm2-logrotate` 模块（v3.0.0）并设置保留策略：
+
+```bash
+pm2 install pm2-logrotate
+pm2 set pm2-logrotate:max_size 10M     # 单文件超 10M 即切分
+pm2 set pm2-logrotate:retain 7         # 每类日志保留 7 份（压缩后）
+pm2 set pm2-logrotate:compress true    # 切分后 gzip 压缩
+pm2 save                               # 持久化模块，重启后仍在
+```
+
+| 项 | 值 |
+|---|---|
+| 模块 | `pm2-logrotate` 3.0.0 |
+| 单文件上限 | 10M |
+| 保留份数 | 7 |
+| 切分时机 | 每日 0 点（`rotateInterval: 0 0 * * *`）+ 超 10M 时 |
+| 日志目录 | `/root/.pm2/logs` |
+
+> 注：`pm2 list` 曾提示内存版与本地版不一致（7.0.1 vs 7.0.4）。2026-09-11 已执行 `pm2 update`，
+> 版本已对齐为 **7.0.4**。
+>
+> ⚠️ **实测坑**：`pm2 update` 会 kill 旧 daemon 并起一个新 daemon，**但不会自动恢复进程表**——
+> 执行后 `pm2 list` 只剩 logrotate 模块，**全部应用掉线**。必须立刻 `pm2 resurrect` 从
+> `/root/.pm2/dump.pm2` 拉起，再 `pm2 save`。整个过程约有 1 分钟服务中断，
+> 生产机执行前请留维护窗口。

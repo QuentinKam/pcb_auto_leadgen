@@ -397,7 +397,7 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 | 数据库 | `pcb_leadgen_demo` | `pcb_leadgen` |
 | Redis | `6379/5` | `6379/6` |
 | gateway / scorer / mailer | 3011 / 3012 / 3013 | 3021 / 3022 / 3023 |
-| 对外端口 | **8090（已放行，公网可达）** | 8091（待放行） |
+| 对外端口 | **8090（已放行，公网可达）** | **8091（已放行，公网可达）** |
 | 数据 | 12 公司 / 14 打分 / 12 画像 / 14 草稿 / 79 发送 | 空库（仅 tenant + user） |
 
 - [x] 按需求「只起看板+查询」：**不启用 send-worker / warmup-worker** → 服务器上「批准并发信」会停在 `queued`（真发信演示仍用本机 `./demo.command`）
@@ -422,8 +422,8 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 
 ### 12.6 遗留事项
 - [x] 已给生产环境加 nginx **HTTP Basic Auth**（用户名 `pcbadmin`，密码存服务器 `/root/.pcb_basicauth_pass`，密码文件 `/etc/nginx/pcb-prod.htpasswd`）—— 8090 演示环境有意保持公开
-- [ ] ⚠️ **生产环境 8091 仍需在阿里云安全组放行**（basic auth 已就绪，加 8091/TCP 规则即可）
-- [ ] PM2 日志未配轮转（`pm2 install pm2-logrotate`），长期运行需补
+- [x] 生产环境 8091 阿里云安全组**已放行**（2026-09-11 外部探测 `curl http://47.251.97.20:8091/` 返回 401，确认公网可达，basic auth 工作正常）
+- [x] PM2 日志轮转已配（`pm2-logrotate` v3.0.0，10M/保留 7 份/压缩，见 DEPLOY.md §11）
 - [ ] 未配域名/HTTPS（`rakuto.store` 未解析到本机，且大陆机器需 ICP 备案）
 
 ---
@@ -438,26 +438,37 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 >
 > 复核方法：逐条回读源码 + 实跑 `pnpm build` / `pnpm test`（2026-09-10）。
 
-### 13.1 采集模块未实现（最高优先级）
+### 13.1 采集模块（2026-09-11：代码已落地，待真实 run 验证）
 
 **简历声明**：「企业采集 → 5 维度打分 …」「实现过完整采集链路：Crawlee + Playwright 抓取 Google / Apollo 企业信息与官网，遵守 robots.txt、限流间隔 ≥2s、代理 IP 池」
 
-**实测现状**：
-- `apps/collector/index.ts` 全文仅 1 行 `console.log('Hello via Bun!')`，无任何采集逻辑
-- 全仓库无 `crawlee` / `playwright` 依赖（全量 grep 无命中）
+**实测现状（2026-09-10 复核时的起点，前两条已于 2026-09-11 修复）**：
+- ~~`apps/collector/index.ts` 全文仅 1 行 `console.log('Hello via Bun!')`~~ → 已重写为 `src/index.ts`（Hono 服务）+ 完整采集链路
+- ~~全仓库无 `crawlee` / `playwright` 依赖~~ → 已装 `crawlee@3.18` / `playwright@1.63` / `cheerio`
 - 演示环境 `http://47.251.97.20:8090` 的线索**全部来自 `scripts/demo/seed.ts` 种子数据**（标记 `companies.raw_payload->>'demo' = 'true'`），非采集所得
 - 即：P1 三件事里的「线索采集」实为未实现；§四 记的 P1「完成」实际只覆盖打分 + 看板
 
-- [ ] `pnpm --filter collector add crawlee playwright` 并锁版本
-- [ ] 实现搜索 API 采集器（关键词 + 地区 + 分页），产出原始 company 记录
-- [ ] 实现 Apollo.io 企业信息采集（走 `APOLLO_API_KEY`，遵守其 API 配额）
-- [ ] 实现官网 enrich（公司域名 → 抓 about / products 页 → 抽产品与行业信号）
-- [ ] robots.txt 校验 + 请求间隔 ≥2s + 重试退避（AGENTS.md §8 法律合规红线）
-- [ ] 代理 IP 池接入（`BRIGHTDATA_TOKEN` 已在 AGENTS.md §9 约定）
-- [ ] 采集产物写库时打 `demo=false` 标记，与种子数据可区分
-- [ ] 补采集器单测（限流计数、robots 拒绝、字段映射）
+- [x] `pnpm --filter @pcb/collector add crawlee playwright cheerio drizzle-orm` 并锁版本（2026-09-11）
+- [x] 实现搜索 API 采集器（关键词 + 地区 + 分页）：`src/clients/search/{types,brave,factory}.ts`，Brave 首发，工厂可切换 provider
+- [x] ~~实现 Apollo.io 企业信息采集（走 `APOLLO_API_KEY`，遵守其 API 配额）~~ **已取消**（用户决策：优先开源）→ 改为自建官网 enrich + 规则推断
+- [x] 实现官网 enrich（公司域名 → 抓首页 / about / products 页 → 抽 about、产品、行业信号、邮箱）：`src/enrich/{crawl,extract,infer}.ts`
+- [x] robots.txt 校验（自研 RFC 9309 简化解析 `src/net/robots.ts` + Crawlee `respectRobotsTxtFile` 双保险）
+- [x] 请求间隔 ≥2s + 每域名并发 1 + 429/5xx 指数退避 + 连续 5 次失败冷却 10 分钟：`src/net/{throttle,circuit-breaker,http}.ts`
+- [x] 代理 IP 池接入（Bright Data，`BRIGHTDATA_PROXY_URL` 或 token+用户名拼装；未配置则直连）：`src/net/proxy.ts`
+- [x] 采集产物写库时打 `demo=false` 标记，与种子数据可区分：`src/store/persist.ts`
+- [x] 补采集器单测：限流计数、熔断状态机、robots 拒绝、Brave 解析/退避、字段映射 —— **32 个用例全绿**
 
-**验收**：一次真实采集 run 后 `/api/lead-scores` 出现非 demo 标记的真实线索；采集器关键路径有测试覆盖。
+**交付形态（2026-09-11）**：
+- 服务：`src/index.ts`（Hono，端口 3004，`/health` + `POST /collect`）
+- CLI：`pnpm --filter @pcb/collector collect --keywords="a,b" --country=us --limit=10`
+- 配置：`apps/collector/.env.example`（含限流/代理/合规项）
+
+**遗留（未完成，验收仍不通过）**：
+- [ ] **真实 run 待验**：本机无 `BRAVE_API_KEY`，`POST /collect` 返回 503 `SEARCH_PROVIDER_UNAVAILABLE`；补 Key 后需实跑一次确认 `/api/lead-scores` 出现非 demo 线索
+- [ ] Playwright 浏览器未安装（`pnpm --filter @pcb/collector exec playwright install chromium`，约 300MB，按 AGENTS.md §11 由用户手动装）；未装时强 JS 站点自动跳过，不阻塞采集
+- [ ] 简历口径：原写「Crawlee + Playwright 抓取 Google / Apollo」需改为「Crawlee + Playwright 抓官网 + Brave 搜索 API」，去掉 Apollo
+
+**验收**：一次真实采集 run 后 `/api/lead-scores` 出现非 demo 标记的真实线索；采集器关键路径有测试覆盖（后者已达成）。
 
 ### 13.2 打分是规则加权，不是 AI（口径二选一）
 
@@ -538,8 +549,8 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 
 ### 13.7 其他遗留（沿用既有记录）
 
-- [ ] 生产 8091 阿里云安全组放行（见 §12.6）
-- [ ] PM2 日志轮转 `pm2 install pm2-logrotate`（见 §12.6）
+- [x] 生产 8091 阿里云安全组放行（见 §12.6）
+- [x] PM2 日志轮转 `pm2 install pm2-logrotate`（见 §12.6）
 - [ ] `apps/mailer` `tsc --noEmit` 约 20 个历史类型错误（见 §8.5 遗留）
 - [ ] `rakuto.store` 在 Resend Dashboard 完成 DNS 验证后 warmup 才能真实发信（见 §8.4）
 - [ ] 头部摘要「P3 ⬜」与 §四「P3 ✅ 完成 —— 2026-09-10」矛盾，统一为已完成
