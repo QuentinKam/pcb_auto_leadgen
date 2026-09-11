@@ -97,6 +97,24 @@ export class HttpClient {
   }
 
   async request<T>(url: string, options: HttpRequestOptions = {}): Promise<HttpResponse<T>> {
+    return (await this.execute(url, options, readJson)) as HttpResponse<T>;
+  }
+
+  /** 读取文本响应（HTML / 非 JSON），沿用限流 / 熔断 / 重试 / 代理 */
+  async text(url: string, options: HttpRequestOptions = {}): Promise<HttpResponse<string>> {
+    return (await this.execute(url, options, readText)) as HttpResponse<string>;
+  }
+
+  async json<T>(url: string, options: HttpRequestOptions = {}): Promise<T> {
+    const response = await this.request<T>(url, options);
+    return response.data;
+  }
+
+  private async execute(
+    url: string,
+    options: HttpRequestOptions,
+    read: (response: Response) => Promise<unknown>
+  ): Promise<HttpResponse<unknown>> {
     const throttleKey = options.throttleKey ?? safeHost(url);
     const retries = options.retries ?? this.retries;
     const timeoutMs = options.timeoutMs ?? this.timeoutMs;
@@ -124,7 +142,7 @@ export class HttpClient {
 
       if (response.ok) {
         this.breaker.recordSuccess(throttleKey);
-        const data = (await readJson(response)) as T;
+        const data = await read(response);
         return { status: response.status, data, headers: response.headers };
       }
 
@@ -143,11 +161,6 @@ export class HttpClient {
         response.headers
       );
     }
-  }
-
-  async json<T>(url: string, options: HttpRequestOptions = {}): Promise<T> {
-    const response = await this.request<T>(url, options);
-    return response.data;
   }
 
   private async send(
@@ -198,6 +211,10 @@ async function readJson(response: Response): Promise<unknown> {
   const text = await response.text();
   if (!text) return null;
   return JSON.parse(text);
+}
+
+async function readText(response: Response): Promise<string> {
+  return response.text();
 }
 
 function safeHost(url: string): string {

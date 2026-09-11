@@ -18,7 +18,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3004),
   SCORER_URL: z.string().default(''),
 
-  SEARCH_PROVIDER: z.enum(['brave', 'tavily', 'serpapi']).default('brave'),
+  SEARCH_PROVIDER: z.enum(['brave', 'duckduckgo', 'tavily', 'serpapi']).default('brave'),
   BRAVE_API_KEY: z.string().default(''),
 
   BRIGHTDATA_PROXY_URL: z.string().default(''),
