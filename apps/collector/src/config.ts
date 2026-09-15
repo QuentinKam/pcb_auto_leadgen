@@ -18,8 +18,13 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3004),
   SCORER_URL: z.string().default(''),
 
-  SEARCH_PROVIDER: z.enum(['brave', 'duckduckgo', 'tavily', 'serpapi']).default('brave'),
+  SEARCH_PROVIDER: z
+    .enum(['brave', 'duckduckgo', 'edgar', 'companies-house', 'opencorporates', 'tavily', 'serpapi'])
+    .default('brave'),
   BRAVE_API_KEY: z.string().default(''),
+  SEC_UA: z.string().default('PCBLeadGen contact@yourcompany.com'),
+  COMPANIES_HOUSE_API_KEY: z.string().default(''),
+  OPENCORPORATES_TOKEN: z.string().default(''),
 
   BRIGHTDATA_PROXY_URL: z.string().default(''),
   BRIGHTDATA_TOKEN: z.string().default(''),

@@ -81,7 +81,7 @@ export async function runCollect(
           domain,
           website: buildWebsiteUrl(domain),
           description: hit.snippet,
-          industry: null,
+          industry: hit.industry ?? null,
           country: options.country ?? null,
           employeeCount: null,
           sizeBucket: null,
@@ -92,7 +92,7 @@ export async function runCollect(
           industrySignals: [],
           emails: [],
           text: '',
-          sources: ['brave'],
+          sources: [search.provider],
           fieldSources: {},
         });
       }
@@ -105,9 +105,12 @@ export async function runCollect(
   const enrichEnabled = options.enrich ?? config.COLLECTOR_ENRICH_ENABLED;
   let enrichedSites = 0;
 
-  if (enrichEnabled && list.length > 0) {
-    const outcomes = await safeCrawl(list, config, proxyUrl, errors);
-    for (const candidate of list) {
+  // EDGAR 虚拟域名（cik-*.edgar.sec.gov）没有真实官网，跳过网站 enrich
+  const nonEdgarList = list.filter((c) => !c.domain.endsWith('.edgar.sec.gov'));
+
+  if (enrichEnabled && nonEdgarList.length > 0) {
+    const outcomes = await safeCrawl(nonEdgarList, config, proxyUrl, errors);
+    for (const candidate of nonEdgarList) {
       let signals = outcomes.get(candidate.domain)?.signals ?? emptySignals();
 
       if (signals.wordCount < THIN_TEXT_WORDS) {

@@ -11,6 +11,8 @@ export interface SearchHit {
   url: string;
   snippet: string | null;
   provider: string;
+  /** 归一化行业 slug（与 scorer industry 词表对齐），无法判定时为 null / 省略 */
+  industry?: string | null;
 }
 
 export interface SearchClient {

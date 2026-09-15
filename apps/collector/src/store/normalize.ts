@@ -1,4 +1,4 @@
-/** 非目标企业域名（社媒 / 聚合站 / 招聘 / 百科），命中则丢弃该搜索命中 */
+/** 非目标企业域名（社媒 / 聚合站 / 招聘 / 百科 / SEC），命中则丢弃该搜索命中 */
 const EXCLUDED_DOMAINS = [
   'linkedin.com',
   'facebook.com',
@@ -21,7 +21,18 @@ const EXCLUDED_DOMAINS = [
   'g2.com',
   'zoominfo.com',
   'dnb.com',
+  // SEC EDGAR 直接返回的 sec.gov URL 不是公司官网；但 EDGAR 客户生成的
+  // cik-*.edgar.sec.gov 虚拟域名会以 *.edgar.sec.gov 形式通过下面 SPECIAL_ACCEPT
+  // 规则被接受（见 normalizeDomain），所以不能把 sec.gov 简单移出 EXCLUDED，
+  // 需要用 SPECIAL_ACCEPT 白名单精确放行 *.edgar.sec.gov 而非整个 sec.gov。
+  // 故此处仍保留 sec.gov（覆盖 browse-edgar 返回的真实 sec.gov 链接）。
+  'sec.gov',
 ];
+
+/** 特例域名：形如 *.edgar.sec.gov，由 EDGAR 客户端构造，用于在 SEC 数据集中做公司去重。
+ *  以 .edgar.sec.gov 结尾的域名通过 normalizeDomain 转换后被加入此列表，
+ *  在 isLikelyCompanyDomain 中被接受（而非被 EXCLUDED_DOMAINS 误杀）。 */
+const SPECIAL_ACCEPT_DOMAINS = ['edgar.sec.gov'];
 
 const SIZE_BUCKETS: Array<{ max: number; bucket: string }> = [
   { max: 10, bucket: '1-10' },
@@ -61,6 +72,9 @@ export function buildWebsiteUrl(domain: string): string {
 }
 
 export function isLikelyCompanyDomain(domain: string): boolean {
+  if (SPECIAL_ACCEPT_DOMAINS.some((ok) => domain === ok || domain.endsWith(`.${ok}`))) {
+    return true;
+  }
   return !EXCLUDED_DOMAINS.some(
     (excluded) => domain === excluded || domain.endsWith(`.${excluded}`)
   );
