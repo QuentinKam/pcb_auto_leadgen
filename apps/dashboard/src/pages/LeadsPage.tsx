@@ -4,6 +4,7 @@ import { api, type LeadScoreItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollectPanel } from '@/components/CollectPanel';
 import { OverrideDialog } from '@/components/OverrideDialog';
 
 const GRADE_BADGE: Record<'A' | 'B' | 'C', 'gradeA' | 'gradeB' | 'gradeC'> = {
@@ -48,16 +49,23 @@ export function LeadsPage() {
     queryFn: () => api.listLeadScores({ grade: 'C', page: 1, pageSize: 1 }),
   });
 
+  // 公司名映射：列表数据来自 lead_scores，公司名从 companies 接口取
+  const companiesQuery = useQuery({
+    queryKey: ['companies', 'name-map'],
+    queryFn: () => api.listCompanies({ page: 1, pageSize: 100 }),
+  });
+  const companyMap = new Map(
+    (companiesQuery.data?.data ?? []).map((c) => [c.id, { name: c.name, website: c.website }])
+  );
+
   function handleGradeFilter(g: 'ALL' | 'A' | 'B' | 'C') {
     setGrade(g);
     setPage(1);
   }
 
-  function handleOverrideSuccess() {
+  function refreshAll() {
     void queryClient.invalidateQueries({ queryKey: ['leadScores'] });
-    void queryClient.invalidateQueries({ queryKey: ['leadScores', 'A', 1, 'stat'] });
-    void queryClient.invalidateQueries({ queryKey: ['leadScores', 'B', 1, 'stat'] });
-    void queryClient.invalidateQueries({ queryKey: ['leadScores', 'C', 1, 'stat'] });
+    void queryClient.invalidateQueries({ queryKey: ['companies', 'name-map'] });
   }
 
   const total = data?.total ?? 0;
@@ -66,7 +74,9 @@ export function LeadsPage() {
   return (
     <div className="min-h-screen bg-[var(--color-background)] p-8">
       <div className="mx-auto max-w-7xl">
-        <h1 className="mb-8 text-3xl font-bold">线索看板</h1>
+        <h1 className="mb-6 text-3xl font-bold">线索看板</h1>
+
+        <CollectPanel onSuccess={refreshAll} />
 
         {/* 统计卡片 */}
         <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -131,6 +141,7 @@ export function LeadsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-[var(--color-border)] text-left">
+                      <th className="p-3 font-medium">公司</th>
                       <th className="p-3 font-medium">分数</th>
                       <th className="p-3 font-medium">模型等级</th>
                       <th className="p-3 font-medium">最终等级</th>
@@ -146,6 +157,19 @@ export function LeadsPage() {
                         key={lead.id}
                         className="border-b border-[var(--color-border)] hover:bg-[var(--color-accent)]"
                       >
+                        <td className="p-3">
+                          <div className="font-medium">{companyMap.get(lead.companyId)?.name ?? '—'}</div>
+                          {companyMap.get(lead.companyId)?.website && (
+                            <a
+                              href={companyMap.get(lead.companyId)?.website ?? undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-[var(--color-primary)] hover:underline"
+                            >
+                              官网
+                            </a>
+                          )}
+                        </td>
                         <td className="p-3 font-semibold">{lead.score}</td>
                         <td className="p-3">
                           <Badge variant={GRADE_BADGE[lead.grade]}>{lead.grade}</Badge>
@@ -231,7 +255,7 @@ export function LeadsPage() {
           lead={overrideLead}
           open={overrideOpen}
           onClose={() => setOverrideOpen(false)}
-          onSuccess={handleOverrideSuccess}
+          onSuccess={refreshAll}
         />
       </div>
     </div>

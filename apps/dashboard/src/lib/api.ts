@@ -105,7 +105,32 @@ export interface ContentDraft {
   createdAt: string;
 }
 
+export interface CollectSummary {
+  tenantId: string;
+  keywords: string[];
+  searchHits: number;
+  candidates: number;
+  companiesCreated: number;
+  companiesUpdated: number;
+  contactsCreated: number;
+  enrichedSites: number;
+  scored: number | null;
+  errors: string[];
+  durationMs: number;
+}
+
 export const api = {
+  async collectLeads(params: {
+    keywords: string[];
+    country?: string;
+    limitPerKeyword?: number;
+  }): Promise<CollectSummary> {
+    return request<CollectSummary>('/api/collectors/run', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  },
+
   async listLeadScores(
     params: {
       page?: number;
