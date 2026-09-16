@@ -61,7 +61,11 @@ export async function runCollect(
     retries: config.COLLECTOR_MAX_RETRIES,
   });
   const search = getSearchClient(config, http);
-  const limitPerKeyword = options.limitPerKeyword ?? config.COLLECTOR_MAX_RESULTS_PER_KEYWORD;
+  // 配置值是硬上限：即使前端传更大值也被夹到上限内（demo 小内存机器可在 env 中调低，正式上线再放大）
+  const limitPerKeyword = Math.min(
+    options.limitPerKeyword ?? config.COLLECTOR_MAX_RESULTS_PER_KEYWORD,
+    config.COLLECTOR_MAX_RESULTS_PER_KEYWORD
+  );
 
   const candidates = new Map<string, LeadCandidate>();
   let searchHits = 0;
