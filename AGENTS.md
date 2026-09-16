@@ -204,7 +204,7 @@ chore(config): bump biome to 2.0
 ## 10. 常见坑提醒
 
 - **Bun + BullMQ**：worker 必须用常驻进程，不能跑在 Serverless
-- **Drizzle + PostgreSQL**：迁移用 `drizzle-kit generate` + `drizzle-kit migrate`，不手写 SQL
+- **Drizzle + PostgreSQL**：schema 改动走 `drizzle-kit generate` + `drizzle-kit migrate`，**禁止手动 ALTER TABLE 补列**。部署前必须对两套库（`pcb_leadgen_demo` / `pcb_leadgen`）执行 migrate，否则代码里的新列会导致线上 500（`column does not exist`）
 - **Crawlee + Playwright**：Playwright 浏览器二进制 300MB+，Fly.io 部署用 Volume 共享
 - **Resend webhook**：必须验签，避免伪造请求污染发送状态
 - **LLM 输出**：必须用 zod 解析 Claude/GPT 返回的 JSON，LLM 会偶尔返回格式错误
