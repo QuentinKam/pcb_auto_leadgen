@@ -570,8 +570,10 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - [x] Playwright chromium 安装并验证（详见 §13.1）
 
 ### 14.2 待办（按优先级）
-- [ ] **【高】10-K Item 1 Business 全文提取喂打分与画像**：EDGAR search-index 只给 SIC 码，当前真实线索评分全 C（PCB Relevance/Demand 为 0），DeepSeek 画像痛点/采购信号常为 `unknown`。主文档已下载，只需定位 Item 1 章节文本 → 写 raw_payload（喂 scorer buyer-fit/demand）+ 喂 profile prompt
+- [x] ~~**【高】10-K Item 1 Business 全文提取喂打分与画像**~~ → 2026-09-16 完成：edgar-select.ts `extractItemBusiness`（目录排除/续页页眉/Item2 回退/10-K-A 返回 null，5 单测），raw_payload.businessOverview（10/10 覆盖，均 5.3 万字符），context.ts 扫描 + 画像 prompt 喂前 1.2 万字符；Hardware 维度 0→10-20、CalAmp 57 分 B、Sensata 画像痛点具体到 IATF16949/AEC-Q。附带修复：搜索排除 10-K/A 修正案；negative 误伤外包方（contract manufacturer 供应链写法不再 excluded，只有自称结构才排除；excluded 12→5，剩余全是真同行）
 - [ ] **【决策】是否对真实线索真实发信**：Resend 现为 LIVE 模式（rakuto.store 已验证，sales@rakuto.store），对 iej@iehcorp.com 等真实邮箱点「批准并发信」会真实寄出。演示发送继续用 SmartSense IoT（example.com 假域名）
+- [ ] **【中】剩余 20 家历史真实公司未回填 Item 1**：重跑关键词只能覆盖 EFTS 当前能复现的公司（29/49）。如需全量回填，写一次性脚本：从 raw_payload.domain（cik-xxx.edgar.sec.gov）取 CIK，调 EFTS 查该 CIK 最新非 10-K/A 的 accession，跑 enrichEdgarFilings 合并 raw_payload
+- [ ] **【中】评分仍以 C 为主（42/49）**：Item 1 解决了 Industry/Hardware（普遍 15+20），但 buyer-fit/demand 维度对年报叙述体不敏感（demand 依赖 "looking for supplier"/招聘等强信号，Item 1 少见）。B 阈值约 50。下一步可：demand 词表补外包叙述（"we outsource all manufacturing"、"contract manufacturers in Asia" 是强采购信号）或引入 LLM 评分维度
 - [ ] **【中】邮箱覆盖率 20-30% 的兜底**：大公司官网只有表单（Vuzix/Fitbit/Insulet 等）。可考虑后续接 Hunter 等邮箱推断 API（需 key）或联系人页表单识别（只标记「表单触达」不产出邮箱）
 - [ ] **【低】mailer send-worker 未纳入常驻保障**：它是独立进程（`pnpm --filter @pcb/mailer worker`），不起则发送永远 queued；生产 PM2/本机脚本均需单独拉起（start.command 已含，DEPLOY.md 生产刻意未启用 worker）
 - [ ] **【低】§九 与 §11 的旧表述**：start.command 已从 5 服务改 6 服务，本文 §九（行 335）描述未同步

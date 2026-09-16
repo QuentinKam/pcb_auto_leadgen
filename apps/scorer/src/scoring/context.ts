@@ -18,7 +18,13 @@ export interface CompanyText {
   haystack: string;
 }
 
-const SCAN_KEYS = ['about', 'products', 'services', 'description'] as const;
+const SCAN_KEYS = [
+  'about',
+  'products',
+  'services',
+  'description',
+  'businessOverview', // EDGAR 10-K Item 1 全文
+] as const;
 
 export function collectCompanyText(company: {
   description?: string | null;
@@ -47,11 +53,17 @@ export function collectCompanyText(company: {
     }
   }
 
-  const haystack = fields.map((f) => f.value).join(' ').toLowerCase();
+  const haystack = fields
+    .map((f) => f.value)
+    .join(' ')
+    .toLowerCase();
   return { fields, haystack };
 }
 
-function firstSource(sourcesByField: Record<string, string[] | string>, key: string): string | undefined {
+function firstSource(
+  sourcesByField: Record<string, string[] | string>,
+  key: string
+): string | undefined {
   const value = sourcesByField[key];
   if (Array.isArray(value)) return value[0];
   if (typeof value === 'string' && value) return value;

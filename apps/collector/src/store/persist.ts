@@ -65,6 +65,7 @@ function buildRawPayload(candidate: LeadCandidate): Record<string, unknown> {
     services: candidate.services,
     industrySignals: candidate.industrySignals,
     description: candidate.description,
+    businessOverview: candidate.businessOverview,
     emails: candidate.emails,
     sourcesByField: candidate.fieldSources,
   };

@@ -5,14 +5,17 @@ import {
   type IndexEntry,
   extractDomains,
   extractEmails,
+  extractItemBusiness,
   pickMainDoc,
   selectWebsite,
 } from './edgar-select.ts';
 
-/** EDGAR 年报 enrich 结果：公开企业邮箱 + 公司真实官网（无 www 前缀） */
+/** EDGAR 年报 enrich 结果：公开企业邮箱 + 公司真实官网（无 www 前缀）+ Item 1 业务章节 */
 export interface EdgarFilingResult {
   emails: string[];
   website: string | null;
+  /** 10-K「Item 1. Business」章节纯文本；10-K/A 修正案等无该章节时为 null */
+  businessText: string | null;
 }
 
 const SEC_CONCURRENCY = 6;
@@ -55,13 +58,10 @@ export async function enrichEdgarFilings(
   return results;
 }
 
-async function enrichOne(
-  candidate: LeadCandidate,
-  userAgent: string
-): Promise<EdgarFilingResult> {
+async function enrichOne(candidate: LeadCandidate, userAgent: string): Promise<EdgarFilingResult> {
   const cik = cikFromDomain(candidate.domain);
   const accession = candidate.accessionDir;
-  if (!cik || !accession) return { emails: [], website: null };
+  if (!cik || !accession) return { emails: [], website: null, businessText: null };
 
   const dir = accession.replace(/-/g, '');
   const baseUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${dir}`;
@@ -73,22 +73,29 @@ async function enrichOne(
       directory: { item: IndexEntry[] };
     };
     const mainDoc = pickMainDoc(idx.directory.item);
-    if (!mainDoc) return { emails: [], website: null };
+    if (!mainDoc) return { emails: [], website: null, businessText: null };
 
     await secGate();
     filingHtml = await fetchText(`${baseUrl}/${mainDoc}`, userAgent, 20_000);
   } catch {
-    return { emails: [], website: null };
+    return { emails: [], website: null, businessText: null };
   }
 
   const $ = load(filingHtml);
   const mailto = $('a[href^="mailto:"]')
-    .map((_, a) => $(a).attr('href')?.replace(/^mailto:/i, '').split('?')[0] ?? '')
+    .map(
+      (_, a) =>
+        $(a)
+          .attr('href')
+          ?.replace(/^mailto:/i, '')
+          .split('?')[0] ?? ''
+    )
     .get();
   const filingEmails = extractEmails($('body').text(), mailto);
 
   const emailDomains = filingEmails.map((e) => e.split('@')[1] ?? '');
   const website = selectWebsite(extractDomains(filingHtml), emailDomains, candidate.name);
+  const businessText = extractItemBusiness(filingHtml);
 
   let siteEmails: string[] = [];
   if (website) siteEmails = await withTimeout(probeWebsite(website), 8_000, []);
@@ -96,6 +103,7 @@ async function enrichOne(
   return {
     emails: [...new Set([...filingEmails, ...siteEmails])],
     website,
+    businessText,
   };
 }
 
@@ -107,7 +115,13 @@ async function probeWebsite(website: string): Promise<string[]> {
       const html = await fetchText(`https://www.${website}/${path}`, BROWSER_UA, 6_000);
       const $ = load(html);
       const mailto = $('a[href^="mailto:"]')
-        .map((_, a) => $(a).attr('href')?.replace(/^mailto:/i, '').split('?')[0] ?? '')
+        .map(
+          (_, a) =>
+            $(a)
+              .attr('href')
+              ?.replace(/^mailto:/i, '')
+              .split('?')[0] ?? ''
+        )
         .get();
       const emails = extractEmails($('body').text(), mailto);
       if (emails.length) return emails;
@@ -125,11 +139,7 @@ async function fetchJson(url: string, userAgent: string, timeoutMs: number): Pro
   return res.json();
 }
 
-async function fetchText(
-  url: string,
-  userAgent: string,
-  timeoutMs: number
-): Promise<string> {
+async function fetchText(url: string, userAgent: string, timeoutMs: number): Promise<string> {
   // 主文档 gzip 后仅 ~230KB；接受默认 gzip，由 Bun 自动解压
   const res = await fetch(url, {
     headers: { 'User-Agent': userAgent },

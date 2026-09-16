@@ -40,7 +40,10 @@ const SIC_INDUSTRY: Record<string, { slug: string; label: string }> = {
   '3620': { slug: 'industrial_equipment', label: 'Electrical Industrial Apparatus' },
   '3621': { slug: 'industrial_equipment', label: 'Motors and Generators' },
   '3647': { slug: 'automotive', label: 'Vehicular Lighting Equipment' },
-  '3661': { slug: 'telecommunications', label: 'Telephone and Telegraph Apparatus, Communication Equipment' },
+  '3661': {
+    slug: 'telecommunications',
+    label: 'Telephone and Telegraph Apparatus, Communication Equipment',
+  },
   '3663': { slug: 'telecommunications', label: 'Radio, TV and Communication Equipment' },
   '3670': { slug: 'hardware', label: 'Electronic Components' },
   '3674': { slug: 'semiconductor', label: 'Semiconductors and Related Devices' },
@@ -48,7 +51,10 @@ const SIC_INDUSTRY: Record<string, { slug: string; label: string }> = {
   '3679': { slug: 'hardware', label: 'Electronic Components' },
   '3690': { slug: 'hardware', label: 'Miscellaneous Electrical Equipment and Supplies' },
   '3714': { slug: 'automotive', label: 'Motor Vehicle Parts and Accessories' },
-  '3812': { slug: 'aerospace_electronics', label: 'Search, Detection, Navigation, Aeronautical Systems' },
+  '3812': {
+    slug: 'aerospace_electronics',
+    label: 'Search, Detection, Navigation, Aeronautical Systems',
+  },
   '3825': { slug: 'electronic_instruments', label: 'Instruments to Measure Electricity' },
   '3826': { slug: 'test_measurement', label: 'Laboratory Analytical Instruments' },
   '3829': { slug: 'electronic_instruments', label: 'Measuring and Controlling Instruments' },
@@ -121,6 +127,10 @@ export class EdgarSearchClient implements SearchClient {
 
     for (const hit of hits) {
       const src = hit._source;
+      // 排除 10-K/A 修正案：往往只含被修订章节（如 Part III 董事信息），无 Item 1；
+      // 且 EFTS 按日期倒序，修正案会顶掉同年原始 10-K
+      if (/\/a(\/|$)/i.test(src.form)) continue;
+
       const cik = src.ciks?.[0] ?? '';
       if (cik) {
         if (seenCiks.has(cik)) continue;

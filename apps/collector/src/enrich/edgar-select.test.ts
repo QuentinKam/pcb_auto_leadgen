@@ -3,6 +3,7 @@ import {
   companyNameTokens,
   extractDomains,
   extractEmails,
+  extractItemBusiness,
   pickMainDoc,
   selectWebsite,
 } from './edgar-select.ts';
@@ -34,11 +35,7 @@ describe('pickMainDoc', () => {
 
 describe('selectWebsite', () => {
   it('prefers domain matching a company-name token', () => {
-    const website = selectWebsite(
-      ['myomnipod.com', 'insulet.com', 'xbrl.org'],
-      [],
-      'INSULET CORP'
-    );
+    const website = selectWebsite(['myomnipod.com', 'insulet.com', 'xbrl.org'], [], 'INSULET CORP');
     expect(website).toBe('insulet.com');
   });
 
@@ -82,5 +79,70 @@ describe('extractDomains', () => {
   it('extracts bare and URL-form domains, deduped and order-preserving', () => {
     const domains = extractDomains('see www.insulet.com and https://insulet.com/x plus xbrl.org');
     expect(domains).toEqual(['insulet.com']);
+  });
+});
+
+describe('extractItemBusiness', () => {
+  // 生成约 N 词的填充正文，保证超过最短章节长度
+  const filler = (n: number) =>
+    Array.from(
+      { length: n },
+      (_, i) => `we design and manufacture electronic assemblies ${i}`
+    ).join(' ');
+
+  const filingHtml = (body: string) => `<html><body><div>${body}</div></body></html>`;
+
+  it('skips the TOC entry and extracts the body until Item 1A', () => {
+    const html = filingHtml(`
+      <p>Item 1. Business 3 Item 1A. Risk Factors 8 Item 2. Properties 20</p>
+      <p>Item 1. Business Overview We are a maker of devices. ${filler(60)}</p>
+      <p>Item 1A. Risk Factors Our stock is volatile.</p>
+    `);
+    const text = extractItemBusiness(html);
+    expect(text).not.toBe(null);
+    expect(text).toContain('Overview We are a maker of devices');
+    expect(text).not.toContain('Risk Factors');
+    expect(text).not.toContain('Item 2. Properties');
+  });
+
+  it('removes continued-page headers inside the section', () => {
+    const html = filingHtml(`
+      <p>Item 1.Business3Item 1A.Risk Factors5Item 1B.Unresolved Staff Comments9</p>
+      <p>Item 1. Business Our Company ${filler(20)}</p>
+      <p>Item 1. Business (continued) ${filler(20)}</p>
+      <p>Item 1A. Risk Factors risks ahead</p>
+    `);
+    const text = extractItemBusiness(html);
+    expect(text).not.toBe(null);
+    expect(text ?? '').not.toMatch(/item\s*1[\s.:]*business/i);
+    expect(text ?? '').toContain('Our Company');
+  });
+
+  it('falls back to Item 2 when the filing has no Item 1A', () => {
+    const html = filingHtml(`
+      <p>Item 1Business1Item 2Properties30</p>
+      <p>Item 1. Business We build connectors. ${filler(60)}</p>
+      <p>Item 2. Properties Our facilities</p>
+    `);
+    const text = extractItemBusiness(html);
+    expect(text).toContain('We build connectors');
+    expect(text).not.toContain('Our facilities');
+  });
+
+  it('returns null for amendments without an Item 1 section', () => {
+    const html = filingHtml(`
+      <p>FORM 10-K/A Amendment No. 1</p>
+      <p>business experience of each of our directors ${filler(60)}</p>
+      <p>Item 2. Properties</p>
+    `);
+    expect(extractItemBusiness(html)).toBe(null);
+  });
+
+  it('returns null when the detected section is too short', () => {
+    const html = filingHtml(`
+      <p>Item 1. Business tiny</p>
+      <p>Item 1A. Risk Factors risks</p>
+    `);
+    expect(extractItemBusiness(html)).toBe(null);
   });
 });

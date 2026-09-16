@@ -27,7 +27,12 @@ const PCB_BUYER_KEYWORDS = [
   'aoi',
 ];
 
-/** 制造商/服务商语境：命中则说明这家公司是 PCB 供应商，而非最终买家 */
+/**
+ * 制造商/服务商语境：命中则说明这家公司是 PCB 供应商，而非最终买家。
+ * 注意不含 'contract manufacturer' —— 该短语在年报中绝大多数是买家描述自己的供应链
+ * （"hardware is produced by contract manufacturers"、"our primary contract manufacturers
+ * include Foxconn"），自称必须用 SELF_DESCRIBED_CM_RE 判定。
+ */
 const MANUFACTURER_PATTERNS = [
   'we manufacture pcb',
   'we fabricate pcb',
@@ -39,8 +44,14 @@ const MANUFACTURER_PATTERNS = [
   'pcba provider',
   'ems provider',
   'electronics manufacturing service',
-  'contract manufacturer',
 ];
+
+/**
+ * 合同制造商的「自称」结构，如 "we are a leading contract manufacturer"。
+ * 排除被动/供应链写法（"products are made by contract manufacturers"）。
+ */
+const SELF_DESCRIBED_CM_RE =
+  /\b(?:we(?: are|'re| remain)|the company is|as a|is|are)\s+(?:a|an|one of the)\b(?:(?!\b(?:by|our|their|customer|supplier|third[- ]party)\b)[^.]){0,40}contract manufacturers?\b/i;
 
 const MAX_SCORE = 15;
 
@@ -53,8 +64,34 @@ export interface KeywordScoreResult {
   evidence: Evidence[];
 }
 
+/**
+ * 外包语境信号：公司把制造「委托给」合同制造商/EMS —— 它本身是买家，不是供应商。
+ * 例："we outsource our manufacturing to contract manufacturers in Taiwan"
+ */
+const OUTSOURCING_CONTEXT_RE =
+  /\b(outsource[ds]?|outsourcing|third[- ]party|3rd[- ]party|external)\b/;
+/** 判定外包语境时，向前检查的字符窗口 */
+const OUTSOURCING_WINDOW = 80;
+
+/**
+ * pattern 是否以「公司自称供应商」出现。
+ * 同一短语在年报里可能出现多次（如既外包又自称），只要有一次不在外包窗口内即算自称。
+ */
+export function isSelfDescribedMatch(haystack: string, pattern: string): boolean {
+  let pos = haystack.indexOf(pattern);
+  while (pos !== -1) {
+    const before = haystack.slice(Math.max(0, pos - OUTSOURCING_WINDOW), pos);
+    if (!OUTSOURCING_CONTEXT_RE.test(before)) return true;
+    pos = haystack.indexOf(pattern, pos + pattern.length);
+  }
+  return false;
+}
+
 export function detectPcbManufacturerContext(haystack: string): boolean {
-  return MANUFACTURER_PATTERNS.some((pattern) => haystack.includes(pattern));
+  return (
+    MANUFACTURER_PATTERNS.some((pattern) => isSelfDescribedMatch(haystack, pattern)) ||
+    SELF_DESCRIBED_CM_RE.test(haystack)
+  );
 }
 
 export function scoreKeywords(company: {

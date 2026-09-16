@@ -93,6 +93,7 @@ export async function runCollect(
           industrySignals: [],
           emails: [],
           accessionDir: hit.accessionDir ?? null,
+          businessOverview: null,
           text: '',
           sources: [search.provider],
           fieldSources: {},
@@ -136,6 +137,13 @@ export async function runCollect(
         if (!result) continue;
         candidate.emails = unique([...candidate.emails, ...result.emails]);
         if (result.website) candidate.website = `https://www.${result.website}/`;
+        if (result.businessText) {
+          candidate.businessOverview = result.businessText;
+          // Item 1 含业务描述与员工数等，参与行业/规模规则推断（截断控制成本）
+          candidate.text = [candidate.text, result.businessText.slice(0, 20_000)]
+            .filter(Boolean)
+            .join(' ');
+        }
       }
     } catch (error) {
       errors.push(`edgar filings enrich failed: ${messageOf(error)}`);

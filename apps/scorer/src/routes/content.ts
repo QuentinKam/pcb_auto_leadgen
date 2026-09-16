@@ -1,13 +1,13 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, desc } from 'drizzle-orm';
+import { companies, contacts, contentDrafts, db, leadScores, profiles } from '@pcb/db';
+import { and, desc, eq } from 'drizzle-orm';
+import { Hono } from 'hono';
 import { z } from 'zod';
-import { db, companies, contacts, leadScores, profiles, contentDrafts } from '@pcb/db';
-import { generateProfile } from '../content/profile.ts';
+import { matchRelevantFacts } from '../content/facts-loader.ts';
 import { generateContent, generateContentAB, getBrandInfo } from '../content/generator.ts';
 import { getActiveModelName } from '../content/llm.ts';
-import { matchRelevantFacts } from '../content/facts-loader.ts';
-import type { ProfileResult, ContentFormat, ContentVariant } from '../content/types.ts';
+import { generateProfile } from '../content/profile.ts';
+import type { ContentFormat, ContentVariant, ProfileResult } from '../content/types.ts';
 
 export const contentRoutes = new Hono();
 
@@ -58,10 +58,16 @@ contentRoutes.post('/profile/:companyId', async (c) => {
     return c.json({ error: 'Company not found', code: 'NOT_FOUND' }, 404);
   }
 
-  // 调用画像 Agent
+  // 调用画像 Agent：EDGAR 公司的 description 只是 SEC 元数据 snippet，
+  // 拼接 10-K Item 1 业务章节（截断）作为主要分析素材
+  const item1 = readBusinessOverview(company.rawPayload);
+  const profileInput = item1
+    ? `${item1}\n\nSEC filing metadata: ${company.description ?? ''}`
+    : company.description;
+
   let profileResult: ProfileResult;
   try {
-    profileResult = await generateProfile(company.name, company.description, company.industry);
+    profileResult = await generateProfile(company.name, profileInput, company.industry);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('API_KEY is not set')) {
@@ -349,3 +355,14 @@ contentRoutes.patch(
     return c.json(updated);
   }
 );
+
+/** 画像 prompt 取用的 Item 1 最大字符数（约 3k tokens，覆盖业务/产品/市场/员工章节） */
+const ITEM1_MAX_CHARS = 12_000;
+
+/** 从 raw_payload 取 10-K Item 1 章节并截断；无则返回 null */
+function readBusinessOverview(rawPayload: unknown): string | null {
+  if (!rawPayload || typeof rawPayload !== 'object') return null;
+  const value = (rawPayload as Record<string, unknown>).businessOverview;
+  if (typeof value !== 'string' || value.trim().length === 0) return null;
+  return value.slice(0, ITEM1_MAX_CHARS);
+}

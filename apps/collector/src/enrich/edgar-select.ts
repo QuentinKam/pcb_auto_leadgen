@@ -1,4 +1,6 @@
-/** EDGAR 年报 enrich 的纯函数：主文档定位 / 官网域名选择 / 邮箱提取。无 IO，便于单测。 */
+import { load } from 'cheerio';
+
+/** EDGAR 年报 enrich 的纯函数：主文档定位 / 官网域名选择 / 邮箱提取 / Item 1 章节提取。无 IO，便于单测。 */
 
 export const CONTACT_PATHS = ['contact-us', 'contact'] as const;
 
@@ -92,6 +94,59 @@ export function extractDomains(html: string): string[] {
     if (d && !out.includes(d)) out.push(d);
   }
   return out;
+}
+
+const ITEM1_HEADING_RE = /item\s*1[\s.: ]*business/gi;
+const ITEM1A_HEADING_RE = /item\s*1a[\s.: ]*risk/gi;
+const ITEM2_HEADING_RE = /item\s*2[\s.: ]*propert/gi;
+/** 目录条目的标志：Item 1 标题后 300 字符内就出现 Item 1A（两者在目录中相邻） */
+const TOC_NEXT_GAP = 300;
+/** Item 1 正文短于该长度视为误匹配（如 10-K/A 修正案无该章节） */
+const MIN_ITEM1_CHARS = 800;
+
+/** 年报纯文本空白归一化：NBSP/制表符压空格、去掉行首空白、压缩空行 */
+function normalizeFilingText(text: string): string {
+  return text
+    .replace(/\r/g, '')
+    .replace(/[ \t ]+/g, ' ')
+    .replace(/\n[ \t]*/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * 从 10-K HTML 提取 PART I「Item 1. Business」章节纯文本，无该章节（如 10-K/A 修正案）返回 null。
+ *
+ * 10-K 中 "Item 1 Business" 出现多次：目录条目 + 正文标题 + 续页页眉 "(continued)"。
+ * 目录条目与其后的 "Item 1A Risk Factors" 相隔很近，据此排除；正文起点取第一个非目录匹配，
+ * 结束于正文 Item 1A（缺失时回退 Item 2 Properties）。
+ */
+export function extractItemBusiness(html: string): string | null {
+  const text = normalizeFilingText(load(html)('body').text());
+  const starts = [...text.matchAll(ITEM1_HEADING_RE)].map((m) => ({
+    at: m.index ?? 0,
+    after: (m.index ?? 0) + m[0].length,
+  }));
+  const ends1a = [...text.matchAll(ITEM1A_HEADING_RE)].map((m) => m.index ?? 0);
+  const ends2 = [...text.matchAll(ITEM2_HEADING_RE)].map((m) => m.index ?? 0);
+  if (starts.length === 0) return null;
+
+  const bodyStart = starts.find((s) => !ends1a.some((e) => e > s.at && e - s.at < TOC_NEXT_GAP));
+  if (bodyStart === undefined) return null;
+
+  const end =
+    ends1a.find((e) => e - bodyStart.at > TOC_NEXT_GAP) ??
+    ends2.find((e) => e - bodyStart.at > TOC_NEXT_GAP);
+  if (end === undefined || end - bodyStart.at < MIN_ITEM1_CHARS) return null;
+
+  return (
+    text
+      .slice(bodyStart.after, end)
+      // cheerio text() 不保证块级元素换行，只能按页眉独有特征 (continued) 清除
+      .replace(/item\s*1[\s.: ]*business\s*\(continued\)/gi, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
 }
 
 /**

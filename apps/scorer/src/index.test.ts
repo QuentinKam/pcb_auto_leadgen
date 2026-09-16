@@ -87,6 +87,33 @@ describe('scoreKeywords (v2, PCB relevance 0-15, context-aware)', () => {
     expect(r.manufacturerContext).toBe(true);
   });
 
+  test('outsourcing TO contract manufacturers is buyer language, not manufacturer context', () => {
+    const r = scoreKeywords({
+      description:
+        'Our products are designed in the US; we currently outsource our manufacturing to certain contract manufacturers in Taiwan and Malaysia. We use PCB assembly and SMT lines.',
+      rawPayload: null,
+    });
+    expect(r.manufacturerContext).toBe(false);
+    expect(r.score).toBeGreaterThan(0);
+  });
+
+  test('self-described contract manufacturer stays manufacturer context', () => {
+    const r = scoreKeywords({
+      description: 'We are a leading contract manufacturer providing electronics manufacturing services.',
+      rawPayload: null,
+    });
+    expect(r.manufacturerContext).toBe(true);
+  });
+
+  test('supply-chain mentions of contract manufacturers stay buyer context', () => {
+    const r = scoreKeywords({
+      description:
+        'The hardware at the core of our products is produced by contract manufacturers. Our primary contract manufacturers include Foxconn, and our contract manufacturers provide us final assembly.',
+      rawPayload: null,
+    });
+    expect(r.manufacturerContext).toBe(false);
+  });
+
   test('no hits gets 0', () => {
     const r = scoreKeywords({ description: 'We sell shoes online.', rawPayload: null });
     expect(r.score).toBe(0);
@@ -157,6 +184,15 @@ describe('scoreNegative (0-10, soft/hard)', () => {
     const r = scoreNegative({ description: 'We are a PCB manufacturer.', rawPayload: null });
     expect(r.excluded).toBe(true);
     expect(r.penalty).toBe(10);
+  });
+
+  test('company outsourcing to contract manufacturers is NOT excluded (it is a buyer)', () => {
+    const r = scoreNegative({
+      description:
+        'We outsource our manufacturing to third-party contract manufacturers in Mexico and sell telematics devices.',
+      rawPayload: null,
+    });
+    expect(r.excluded).toBe(false);
   });
 
   test('SaaS is soft negative (penalty only)', () => {
