@@ -463,12 +463,12 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - CLI：`pnpm --filter @pcb/collector collect --keywords="a,b" --country=us --limit=10`
 - 配置：`apps/collector/.env.example`（含限流/代理/合规项）
 
-**遗留（未完成，验收仍不通过）**：
-- [ ] **真实 run 待验**：本机无 `BRAVE_API_KEY`，`POST /collect` 返回 503 `SEARCH_PROVIDER_UNAVAILABLE`；补 Key 后需实跑一次确认 `/api/lead-scores` 出现非 demo 线索
-- [ ] Playwright 浏览器未安装（`pnpm --filter @pcb/collector exec playwright install chromium`，约 300MB，按 AGENTS.md §11 由用户手动装）；未装时强 JS 站点自动跳过，不阻塞采集
-- [ ] 简历口径：原写「Crawlee + Playwright 抓取 Google / Apollo」需改为「Crawlee + Playwright 抓官网 + Brave 搜索 API」，去掉 Apollo
+**遗留**：
+- [x] ~~**真实 run 待验**~~ → 2026-09-15/16 已用 EDGAR 多次实跑验证（`SEARCH_PROVIDER=edgar`，免费直连无需 key）：非 demo 公司/联系人/打分写库正常，浏览器一键采集端到端通过
+- [x] ~~Playwright 浏览器未安装~~ → 2026-09-16 已装（playwright 1.63.0，chromium 1243），`fetchRenderedHtml` 降级路径 smoke test 通过（1.4s）。注意：实测 EDGAR 上市公司场景 0 增益（7 家无邮箱公司渲染后仍无邮箱、耗时 150s），**不要**把它接到 edgar-filings 的 probeWebsite；价值场景是 Brave/DDG 中小厂强 JS 官网
+- [ ] 简历口径：原写「Crawlee + Playwright 抓取 Google / Apollo」需改为「Crawlee + Playwright 抓官网 + EDGAR/Brave 搜索 API」，去掉 Apollo
 
-**验收**：一次真实采集 run 后 `/api/lead-scores` 出现非 demo 标记的真实线索；采集器关键路径有测试覆盖（后者已达成）。
+**验收**：一次真实采集 run 后 `/api/lead-scores` 出现非 demo 标记的真实线索（✅ 已达成，EDGAR 真实线索 30+ 家）；采集器关键路径有测试覆盖（✅ 64 用例）。
 
 ### 13.2 打分是规则加权，不是 AI（口径二选一）
 
@@ -554,4 +554,25 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - [ ] `apps/mailer` `tsc --noEmit` 约 20 个历史类型错误（见 §8.5 遗留）
 - [ ] `rakuto.store` 在 Resend Dashboard 完成 DNS 验证后 warmup 才能真实发信（见 §8.4）
 - [ ] 头部摘要「P3 ⬜」与 §四「P3 ✅ 完成 —— 2026-09-10」矛盾，统一为已完成
+
+---
+
+## 十四、五步链路打通后的遗留（2026-09-16）
+
+> 背景：10-K 年报邮箱提取上线（edgar-select.ts + edgar-filings.ts，64 个 collector 单测），DeepSeek 接入 scorer，「采集 → 评分 → 联系人 → 邮件 → 跟进」浏览器端到端全部验证通过。
+
+### 14.1 已完成
+- [x] EDGAR 10-K enrich：accession index.json 选主文档 → 年报正文提取公开企业邮箱 + 公司名 token 匹配选官网 → probeWebsite(/contact-us,/contact) 兜底；线索列表加「联系人邮箱」列、采集横幅加「提取联系人 N」
+- [x] 性能：SEC 下载改为直接取 gzip 全文（~230KB，勿用 Range——identity 被忽略返回全文、gzip 截断报 ZlibError）；SEC_CONCURRENCY=6 + 120ms 全局节拍；单站官网探测总时限 8s；10 家采集约 15-20s
+- [x] DeepSeek 接入：scorer/.env `LLM_PROVIDER=openai_compatible` + `OPENAI_MODEL=deepseek-chat` + 官方 base URL；BRAND_* 改为 GAN PCB；IEH 画像 + A/B 开发信实时生成实测通过
+- [x] 五步浏览器验证：一键采集（wearable device：新建 10/联系人 2/打分 10）→ 评分 → 联系人列 → 内容审核（画像+A/B）→ 批准发信（SmartSense，sent）→ 发送记录页
+- [x] start.command 更新：补 collector:3004（共 6 服务，按依赖顺序）、端口/进程幂等检测（重复跑不重复拉起）、验收路径改为五步链路 + LIVE 模式真实发信警告
+- [x] Playwright chromium 安装并验证（详见 §13.1）
+
+### 14.2 待办（按优先级）
+- [ ] **【高】10-K Item 1 Business 全文提取喂打分与画像**：EDGAR search-index 只给 SIC 码，当前真实线索评分全 C（PCB Relevance/Demand 为 0），DeepSeek 画像痛点/采购信号常为 `unknown`。主文档已下载，只需定位 Item 1 章节文本 → 写 raw_payload（喂 scorer buyer-fit/demand）+ 喂 profile prompt
+- [ ] **【决策】是否对真实线索真实发信**：Resend 现为 LIVE 模式（rakuto.store 已验证，sales@rakuto.store），对 iej@iehcorp.com 等真实邮箱点「批准并发信」会真实寄出。演示发送继续用 SmartSense IoT（example.com 假域名）
+- [ ] **【中】邮箱覆盖率 20-30% 的兜底**：大公司官网只有表单（Vuzix/Fitbit/Insulet 等）。可考虑后续接 Hunter 等邮箱推断 API（需 key）或联系人页表单识别（只标记「表单触达」不产出邮箱）
+- [ ] **【低】mailer send-worker 未纳入常驻保障**：它是独立进程（`pnpm --filter @pcb/mailer worker`），不起则发送永远 queued；生产 PM2/本机脚本均需单独拉起（start.command 已含，DEPLOY.md 生产刻意未启用 worker）
+- [ ] **【低】§九 与 §11 的旧表述**：start.command 已从 5 服务改 6 服务，本文 §九（行 335）描述未同步
 
