@@ -176,6 +176,46 @@ describe('scoreDemand (0-30, context-aware)', () => {
     });
     expect(r.tier).toBe(2);
   });
+
+  test('outsourcing our manufacturing is Tier 1 buyer demand', () => {
+    const r = scoreDemand({
+      description:
+        'While our products are largely designed in the U.S., we currently outsource our manufacturing to certain contract manufacturers in Taiwan, Malaysia and Mexico.',
+      rawPayload: null,
+    });
+    expect(r.tier).toBe(1);
+    expect(r.score).toBeGreaterThanOrEqual(25);
+    expect(r.signals.some((s) => s.signalType === 'outsourcing')).toBe(true);
+  });
+
+  test('passive voice "manufactured by contract manufacturers" is Tier 1 demand', () => {
+    const r = scoreDemand({
+      description:
+        'The hardware at the core of our products is produced by contract manufacturers. Our primary contract manufacturers include Hon Hai Precision Industry Co., Ltd.',
+      rawPayload: null,
+    });
+    expect(r.tier).toBe(1);
+    expect(r.signals.some((s) => s.signalType === 'outsourcing')).toBe(true);
+  });
+
+  test('supplier "outsourced manufacturing partner" is NOT demand (Fabrinet pattern)', () => {
+    const r = scoreDemand({
+      description:
+        'In many cases, we are the sole outsourced manufacturing partner used by our customers for the products that we produce for them.',
+      rawPayload: null,
+    });
+    expect(r.score).toBe(0);
+    expect(r.signals.some((s) => s.signalType === 'outsourcing')).toBe(false);
+  });
+
+  test('geographic "contract manufacturers in Asia" is Tier 2 demand', () => {
+    const r = scoreDemand({
+      description: 'We use contract manufacturers in Asia for cost-effective production.',
+      rawPayload: null,
+    });
+    expect(r.tier).toBe(2);
+    expect(r.signals.some((s) => s.signalType === 'outsourcing')).toBe(true);
+  });
 });
 
 // ============ 单元测试：Negative Signal (0-10) ============

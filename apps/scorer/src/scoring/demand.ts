@@ -51,6 +51,23 @@ const DEMAND_PATTERNS: Array<{ tier: DemandTier; type: string; pattern: string }
   { tier: 1, type: 'expansion', pattern: 'production expansion' },
   { tier: 1, type: 'expansion', pattern: 'manufacturing expansion' },
   { tier: 1, type: 'expansion', pattern: 'new factory' },
+  // Tier 1 — Outsourcing signals（10-K Item 1 叙述体中的强采购信号）
+  // 公司自述把制造外包给合同制造商 = 明确买家。patterns 含第一人称 "our/the" 或被动语态，
+  // 避免匹配供应商 "outsourced manufacturing partner used by our customers"（Fabrinet）。
+  { tier: 1, type: 'outsourcing', pattern: 'outsource our manufacturing' },
+  { tier: 1, type: 'outsourcing', pattern: 'outsource the manufacturing' },
+  { tier: 1, type: 'outsourcing', pattern: 'outsource all manufacturing' },
+  { tier: 1, type: 'outsourcing', pattern: 'outsource our hardware manufacturing' },
+  { tier: 1, type: 'outsourcing', pattern: 'outsourcing our manufacturing' },
+  { tier: 1, type: 'outsourcing', pattern: 'outsourced our manufacturing' },
+  { tier: 1, type: 'outsourcing', pattern: 'manufactured by contract manufacturers' },
+  { tier: 1, type: 'outsourcing', pattern: 'produced by contract manufacturers' },
+  { tier: 1, type: 'outsourcing', pattern: 'assembled by contract manufacturers' },
+  { tier: 1, type: 'outsourcing', pattern: 'rely on contract manufacturers' },
+  { tier: 1, type: 'outsourcing', pattern: 'depend on contract manufacturers' },
+  { tier: 1, type: 'outsourcing', pattern: 'relied on contract manufacturers' },
+  { tier: 1, type: 'outsourcing', pattern: 'products are manufactured by' },
+  { tier: 1, type: 'outsourcing', pattern: 'products are assembled by' },
 
   // Tier 2 — Medium Demand
   { tier: 2, type: 'hiring', pattern: 'hiring hardware engineer' },
@@ -66,6 +83,8 @@ const DEMAND_PATTERNS: Array<{ tier: DemandTier; type: string; pattern: string }
   { tier: 2, type: 'funding', pattern: 'series b' },
   { tier: 2, type: 'funding', pattern: 'seed funding' },
   { tier: 2, type: 'funding', pattern: 'hardware funding' },
+  // Tier 2 — geographic CM mention（"contract manufacturers in Asia/Taiwan/Mexico"）
+  { tier: 2, type: 'outsourcing', pattern: 'contract manufacturers in' },
 
   // Tier 3 — Weak Demand（显式措辞，避免与 Buyer Fit 重复）
   { tier: 3, type: 'existing_product', pattern: 'existing hardware product' },
@@ -86,6 +105,13 @@ const BUYER_MARKERS = [
   'we are developing',
   'we require',
   'seeking a pcb',
+  // 10-K 叙述体中第一人称外包 = 买家
+  'we outsource',
+  'we currently outsource',
+  'we rely on',
+  'we depend on',
+  'our products are',
+  'our manufacturing is',
 ];
 
 /** 服务商替他人找供应商的口吻 → 不是买家需求 */
