@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, type LeadScoreItem } from '@/lib/api';
+import { api, contactsApi, type LeadScoreItem } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,6 +58,18 @@ export function LeadsPage() {
     (companiesQuery.data?.data ?? []).map((c) => [c.id, { name: c.name, website: c.website }])
   );
 
+  // 联系人映射：从年报/官网提取的公开邮箱，按公司聚合
+  const contactsQuery = useQuery({
+    queryKey: ['contacts', 'email-map'],
+    queryFn: () => contactsApi.listContacts({ hasEmail: true, limit: 200 }),
+  });
+  const contactMap = new Map<string, string>();
+  for (const contact of contactsQuery.data?.items ?? []) {
+    if (contact.email && !contactMap.has(contact.companyId)) {
+      contactMap.set(contact.companyId, contact.email);
+    }
+  }
+
   function handleGradeFilter(g: 'ALL' | 'A' | 'B' | 'C') {
     setGrade(g);
     setPage(1);
@@ -66,6 +78,7 @@ export function LeadsPage() {
   function refreshAll() {
     void queryClient.invalidateQueries({ queryKey: ['leadScores'] });
     void queryClient.invalidateQueries({ queryKey: ['companies', 'name-map'] });
+    void queryClient.invalidateQueries({ queryKey: ['contacts', 'email-map'] });
   }
 
   const total = data?.total ?? 0;
@@ -142,6 +155,7 @@ export function LeadsPage() {
                   <thead>
                     <tr className="border-b border-[var(--color-border)] text-left">
                       <th className="p-3 font-medium">公司</th>
+                      <th className="p-3 font-medium">联系人邮箱</th>
                       <th className="p-3 font-medium">分数</th>
                       <th className="p-3 font-medium">模型等级</th>
                       <th className="p-3 font-medium">最终等级</th>
@@ -168,6 +182,18 @@ export function LeadsPage() {
                             >
                               官网
                             </a>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          {contactMap.get(lead.companyId) ? (
+                            <a
+                              href={`mailto:${contactMap.get(lead.companyId)}`}
+                              className="text-xs text-[var(--color-primary)] hover:underline"
+                            >
+                              {contactMap.get(lead.companyId)}
+                            </a>
+                          ) : (
+                            <span className="text-xs text-[var(--color-muted-foreground)]">—</span>
                           )}
                         </td>
                         <td className="p-3 font-semibold">{lead.score}</td>

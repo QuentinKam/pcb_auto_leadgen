@@ -64,6 +64,7 @@ export function CollectPanel({ onSuccess }: CollectPanelProps) {
             <p className="font-medium">
               采集完成（耗时 {(summary.durationMs / 1000).toFixed(1)}s）：搜索命中 {summary.searchHits}，
               新建公司 {summary.companiesCreated} / 更新 {summary.companiesUpdated}，
+              提取联系人 {summary.contactsCreated}，
               完成打分 {summary.scored === null ? '未启用' : `${summary.scored} 条`}
             </p>
             {summary.errors.length > 0 && (

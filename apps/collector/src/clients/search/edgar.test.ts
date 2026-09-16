@@ -18,6 +18,7 @@ describe('EdgarSearchClient', () => {
         total: { value: 2 },
         hits: [
           {
+            _id: '0000897723-24-000012:sanm-20240315.htm',
             _source: {
               display_names: ['SANMINA CORP  (SANM)  (CIK 0000897723)'],
               ciks: ['897723'],
@@ -28,6 +29,7 @@ describe('EdgarSearchClient', () => {
             },
           },
           {
+            _id: '0001116942-24-000008:ttmi-20231231.htm',
             _source: {
               display_names: ['TTM TECHNOLOGIES INC  (TTMI)  (CIK 0001116942)'],
               ciks: ['1116942'],
@@ -54,6 +56,7 @@ describe('EdgarSearchClient', () => {
     expect(hits[0].snippet).toContain('SIC: 3672');
     expect(hits[0].snippet).toContain('PCB Manufacturer');
     expect(hits[0].url).toContain('0000897723');
+    expect(hits[0].accessionDir).toBe('0000897723-24-000012');
 
     expect(hits[1]).toMatchObject({
       title: 'TTM TECHNOLOGIES INC',
@@ -75,7 +78,12 @@ describe('EdgarSearchClient', () => {
     mockHttpRequest.mockResolvedValue({
       data: {
         hits: {
-          hits: [{ _source: { display_names: ['ACME CORP'], ciks: [], sics: [], biz_locations: [] } }],
+          hits: [
+            {
+              _id: '',
+              _source: { display_names: ['ACME CORP'], ciks: [], sics: [], biz_locations: [] },
+            },
+          ],
         },
       },
     });
@@ -93,6 +101,7 @@ describe('EdgarSearchClient', () => {
         hits: {
           hits: [
             {
+              _id: '0001145197-22-000012:podd-20211231.htm',
               _source: {
                 display_names: ['INSULET CORP  (PODD)  (CIK 0001145197)'],
                 ciks: ['1145197'],
@@ -101,6 +110,7 @@ describe('EdgarSearchClient', () => {
               },
             },
             {
+              _id: '0000897723-24-000012:sanm-20231230.htm',
               _source: {
                 display_names: ['SANMINA CORP  (SANM)  (CIK 0000897723)'],
                 ciks: ['897723'],
@@ -129,6 +139,7 @@ describe('EdgarSearchClient', () => {
         hits: {
           hits: [
             {
+              _id: '0001103640-20-000015:omph-20200131.htm',
               _source: {
                 display_names: ['OMPHALOS, CORP  (CIK 0001103640)'],
                 ciks: ['1103640'],
@@ -151,6 +162,7 @@ describe('EdgarSearchClient', () => {
   it('dedupes filings by CIK and truncates to count client-side', async () => {
     const sources = [
       {
+        _id: '0000897723-20-000034:sanm-20201003.htm',
         _source: {
           display_names: ['SANMINA CORP  (SANM)  (CIK 0000897723)'],
           ciks: ['897723'],
@@ -160,6 +172,7 @@ describe('EdgarSearchClient', () => {
         },
       },
       {
+        _id: '0000897723-25-000018:sanm-20240928.htm',
         _source: {
           display_names: ['SANMINA CORP  (SANM)  (CIK 0000897723)'],
           ciks: ['897723'],
@@ -169,6 +182,7 @@ describe('EdgarSearchClient', () => {
         },
       },
       {
+        _id: '0001116942-22-000006:ttmi-20211231.htm',
         _source: {
           display_names: ['TTM TECHNOLOGIES INC  (TTMI)  (CIK 0001116942)'],
           ciks: ['1116942'],
@@ -178,6 +192,7 @@ describe('EdgarSearchClient', () => {
         },
       },
       {
+        _id: '0001145197-22-000012:podd-20211231.htm',
         _source: {
           display_names: ['INSULET CORP  (PODD)  (CIK 0001145197)'],
           ciks: ['1145197'],

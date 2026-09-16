@@ -14,6 +14,8 @@ export interface LeadCandidate {
   services: string[];
   industrySignals: string[];
   emails: string[];
+  /** EDGAR 专用：10-K accession number（带横线），供年报 enrich 拼路径 */
+  accessionDir: string | null;
   /** 官网正文汇总，用于规则推断（不落库） */
   text: string;
   sources: string[];

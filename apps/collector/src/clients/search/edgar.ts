@@ -24,7 +24,7 @@ interface EdgarHit {
 interface EdgarSearchResponse {
   hits: {
     total: { value: number };
-    hits: Array<{ _source: EdgarHit }>;
+    hits: Array<{ _id: string; _source: EdgarHit }>;
   };
 }
 
@@ -127,6 +127,10 @@ export class EdgarSearchClient implements SearchClient {
         seenCiks.add(cik);
       }
 
+      // _id 形如 "0000897723-20-000034:sanm-20201003.htm"（accession:命中文件名）。
+      // 文件名常指向附件（EX-21/EX-10），只取 accession，主文档由年报 enrich 重新定位
+      const accessionDir = hit._id.split(':')[0] ?? '';
+
       const displayName = src.display_names?.[0] ?? '';
       // display_names 形如 "SANMINA CORP  (SANM)  (CIK 0000897723)"，
       // 也可能只有 "OMPHALOS, CORP  (CIK 0001103640)"
@@ -159,6 +163,7 @@ export class EdgarSearchClient implements SearchClient {
         provider: this.provider,
         // SIC 3672 是同行（PCB 制造商），slug 置空；交给 scorer negative 维度排除
         industry: sic === '3672' ? null : (sicInfo?.slug ?? null),
+        accessionDir: accessionDir || null,
       });
     }
 

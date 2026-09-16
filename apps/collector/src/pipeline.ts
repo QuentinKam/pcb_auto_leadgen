@@ -2,6 +2,7 @@ import { getSearchClient } from './clients/search/factory.ts';
 import { type CollectorConfig, loadConfig } from './config.ts';
 import { fetchRenderedHtml } from './enrich/browser.ts';
 import { type CrawlOutcome, crawlWebsites } from './enrich/crawl.ts';
+import { enrichEdgarFilings } from './enrich/edgar-filings.ts';
 import { type SiteSignals, emptySignals, extractSignals, mergeSignals } from './enrich/extract.ts';
 import { inferEmployeeCount, inferFundingStage, inferIndustry } from './enrich/infer.ts';
 import { CircuitBreaker } from './net/circuit-breaker.ts';
@@ -91,6 +92,7 @@ export async function runCollect(
           services: [],
           industrySignals: [],
           emails: [],
+          accessionDir: hit.accessionDir ?? null,
           text: '',
           sources: [search.provider],
           fieldSources: {},
@@ -105,8 +107,8 @@ export async function runCollect(
   const enrichEnabled = options.enrich ?? config.COLLECTOR_ENRICH_ENABLED;
   let enrichedSites = 0;
 
-  // EDGAR 虚拟域名（cik-*.edgar.sec.gov）没有真实官网，跳过网站 enrich
   const nonEdgarList = list.filter((c) => !c.domain.endsWith('.edgar.sec.gov'));
+  const edgarList = list.filter((c) => c.domain.endsWith('.edgar.sec.gov'));
 
   if (enrichEnabled && nonEdgarList.length > 0) {
     const outcomes = await safeCrawl(nonEdgarList, config, proxyUrl, errors);
@@ -122,6 +124,21 @@ export async function runCollect(
 
       if (signals.wordCount > 0) enrichedSites += 1;
       applySignals(candidate, signals);
+    }
+  }
+
+  // EDGAR 公司：从 10-K 年报提取公开邮箱并发现真实官网（官网抓取流程对虚拟域名不适用）
+  if (enrichEnabled && edgarList.length > 0) {
+    try {
+      const filingResults = await enrichEdgarFilings(edgarList, config.SEC_UA);
+      for (const candidate of edgarList) {
+        const result = filingResults.get(candidate.domain);
+        if (!result) continue;
+        candidate.emails = unique([...candidate.emails, ...result.emails]);
+        if (result.website) candidate.website = `https://www.${result.website}/`;
+      }
+    } catch (error) {
+      errors.push(`edgar filings enrich failed: ${messageOf(error)}`);
     }
   }
 
