@@ -1,11 +1,13 @@
-import { load } from 'cheerio';
+import { Buffer } from 'node:buffer';
 import type { LeadCandidate } from '../types.ts';
 import {
   CONTACT_PATHS,
   type IndexEntry,
   extractDomains,
   extractEmails,
-  extractItemBusiness,
+  extractItemBusinessFromText,
+  extractMailtoLinks,
+  htmlToText,
   pickMainDoc,
   selectWebsite,
 } from './edgar-select.ts';
@@ -18,9 +20,13 @@ export interface EdgarFilingResult {
   businessText: string | null;
 }
 
-const SEC_CONCURRENCY = 6;
+const DEFAULT_SEC_CONCURRENCY = 3;
 /** SEC Fair Access 上限 10 req/s；全局请求间隔 120ms → ≤8.3 req/s */
 const SEC_REQUEST_GAP_MS = 120;
+/** 10-K 主文档下载上限（解压后字节）：截断而非报错，邮箱/Item 1 通常在文档前部 */
+const MAX_FILING_BYTES = 15_000_000;
+/** 官网探测页下载上限，防止超大页面撑爆内存 */
+const MAX_WEBPAGE_BYTES = 5_000_000;
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
@@ -48,10 +54,11 @@ function cikFromDomain(domain: string): string | null {
  */
 export async function enrichEdgarFilings(
   candidates: LeadCandidate[],
-  userAgent: string
+  userAgent: string,
+  concurrency: number = DEFAULT_SEC_CONCURRENCY
 ): Promise<Map<string, EdgarFilingResult>> {
   const results = new Map<string, EdgarFilingResult>();
-  await runPool(candidates, SEC_CONCURRENCY, async (candidate) => {
+  await runPool(candidates, concurrency, async (candidate) => {
     const result = await enrichOne(candidate, userAgent);
     results.set(candidate.domain, result);
   });
@@ -76,26 +83,19 @@ async function enrichOne(candidate: LeadCandidate, userAgent: string): Promise<E
     if (!mainDoc) return { emails: [], website: null, businessText: null };
 
     await secGate();
-    filingHtml = await fetchText(`${baseUrl}/${mainDoc}`, userAgent, 20_000);
+    filingHtml = await fetchText(`${baseUrl}/${mainDoc}`, userAgent, 20_000, MAX_FILING_BYTES);
   } catch {
     return { emails: [], website: null, businessText: null };
   }
 
-  const $ = load(filingHtml);
-  const mailto = $('a[href^="mailto:"]')
-    .map(
-      (_, a) =>
-        $(a)
-          .attr('href')
-          ?.replace(/^mailto:/i, '')
-          .split('?')[0] ?? ''
-    )
-    .get();
-  const filingEmails = extractEmails($('body').text(), mailto);
+  // 不用 cheerio：parse5 解析数十 MB 的年报 HTML 会瞬时放大内存一个数量级导致 OOM
+  const bodyText = htmlToText(filingHtml);
+  const mailto = extractMailtoLinks(filingHtml);
+  const filingEmails = extractEmails(bodyText, mailto);
 
   const emailDomains = filingEmails.map((e) => e.split('@')[1] ?? '');
   const website = selectWebsite(extractDomains(filingHtml), emailDomains, candidate.name);
-  const businessText = extractItemBusiness(filingHtml);
+  const businessText = extractItemBusinessFromText(bodyText);
 
   let siteEmails: string[] = [];
   if (website) siteEmails = await withTimeout(probeWebsite(website), 8_000, []);
@@ -112,18 +112,13 @@ async function probeWebsite(website: string): Promise<string[]> {
   const paths = ['', ...CONTACT_PATHS];
   for (const path of paths) {
     try {
-      const html = await fetchText(`https://www.${website}/${path}`, BROWSER_UA, 6_000);
-      const $ = load(html);
-      const mailto = $('a[href^="mailto:"]')
-        .map(
-          (_, a) =>
-            $(a)
-              .attr('href')
-              ?.replace(/^mailto:/i, '')
-              .split('?')[0] ?? ''
-        )
-        .get();
-      const emails = extractEmails($('body').text(), mailto);
+      const html = await fetchText(
+        `https://www.${website}/${path}`,
+        BROWSER_UA,
+        6_000,
+        MAX_WEBPAGE_BYTES
+      );
+      const emails = extractEmails(htmlToText(html), extractMailtoLinks(html));
       if (emails.length) return emails;
     } catch {}
   }
@@ -139,15 +134,43 @@ async function fetchJson(url: string, userAgent: string, timeoutMs: number): Pro
   return res.json();
 }
 
-async function fetchText(url: string, userAgent: string, timeoutMs: number): Promise<string> {
-  // 主文档 gzip 后仅 ~230KB；接受默认 gzip，由 Bun 自动解压
+async function fetchText(
+  url: string,
+  userAgent: string,
+  timeoutMs: number,
+  maxBytes: number
+): Promise<string> {
+  // 主文档 gzip 后通常仅 ~230KB，但个别 10-K 解压后可达数十 MB；
+  // 流式读取到 maxBytes 即截断并取消响应，避免整份缓冲 + cheerio 解析把内存撑爆
   const res = await fetch(url, {
     headers: { 'User-Agent': userAgent },
     signal: AbortSignal.timeout(timeoutMs),
     redirect: 'follow',
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.text();
+
+  if (!res.body) return res.text();
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      received += value.length;
+      if (received > maxBytes) {
+        chunks.push(value.subarray(0, value.length - (received - maxBytes)));
+        await reader.cancel().catch(() => {});
+        console.warn(`[edgar] response truncated at ${maxBytes} bytes: ${url}`);
+        break;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString('utf8');
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {

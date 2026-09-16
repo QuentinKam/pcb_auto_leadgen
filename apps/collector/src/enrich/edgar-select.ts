@@ -1,5 +1,3 @@
-import { load } from 'cheerio';
-
 /** EDGAR 年报 enrich 的纯函数：主文档定位 / 官网域名选择 / 邮箱提取 / Item 1 章节提取。无 IO，便于单测。 */
 
 export const CONTACT_PATHS = ['contact-us', 'contact'] as const;
@@ -115,14 +113,46 @@ function normalizeFilingText(text: string): string {
 }
 
 /**
- * 从 10-K HTML 提取 PART I「Item 1. Business」章节纯文本，无该章节（如 10-K/A 修正案）返回 null。
+ * 轻量 HTML → 纯文本：去脚本/样式/注释，块级标签转换行，剥离其余标签并解码常见实体。
+ * 不用 cheerio/parse5：单份 10-K 原始 HTML 可达数十 MB，DOM 树会把内存放大一个数量级（实测 OOM）。
+ */
+const BLOCK_CLOSE_RE =
+  /<\/(?:p|div|tr|td|th|table|h[1-6]|li|ul|ol|section|article|header|footer|dl|dt|dd)[^>]*>/gi;
+const BR_RE = /<br\s*\/?>/gi;
+
+export function htmlToText(html: string): string {
+  const text = html
+    .replace(/<(script|style|noscript)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<!DOCTYPE[^>]*>/gi, ' ')
+    .replace(BR_RE, '\n')
+    .replace(BLOCK_CLOSE_RE, '\n')
+    .replace(/<[^>]+>/g, ' ');
+
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, code) => safeCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => safeCodePoint(parseInt(hex, 16)));
+}
+
+function safeCodePoint(code: number): string {
+  return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : '';
+}
+
+/**
+ * 从纯文本中切出 PART I「Item 1. Business」章节，无该章节（如 10-K/A 修正案）返回 null。
  *
  * 10-K 中 "Item 1 Business" 出现多次：目录条目 + 正文标题 + 续页页眉 "(continued)"。
  * 目录条目与其后的 "Item 1A Risk Factors" 相隔很近，据此排除；正文起点取第一个非目录匹配，
  * 结束于正文 Item 1A（缺失时回退 Item 2 Properties）。
  */
-export function extractItemBusiness(html: string): string | null {
-  const text = normalizeFilingText(load(html)('body').text());
+export function extractItemBusinessFromText(rawText: string): string | null {
+  const text = normalizeFilingText(rawText);
   const starts = [...text.matchAll(ITEM1_HEADING_RE)].map((m) => ({
     at: m.index ?? 0,
     after: (m.index ?? 0) + m[0].length,
@@ -139,19 +169,35 @@ export function extractItemBusiness(html: string): string | null {
     ends2.find((e) => e - bodyStart.at > TOC_NEXT_GAP);
   if (end === undefined || end - bodyStart.at < MIN_ITEM1_CHARS) return null;
 
-  return (
-    text
-      .slice(bodyStart.after, end)
-      // cheerio text() 不保证块级元素换行，只能按页眉独有特征 (continued) 清除
-      .replace(/item\s*1[\s.: ]*business\s*\(continued\)/gi, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  );
+  return text
+    .slice(bodyStart.after, end)
+    .replace(/item\s*1[\s.: ]*business\s*\(continued\)/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * 从 10-K HTML 提取 PART I「Item 1. Business」章节纯文本，无该章节（如 10-K/A 修正案）返回 null。
+ */
+export function extractItemBusiness(html: string): string | null {
+  return extractItemBusinessFromText(htmlToText(html));
+}
+
+const MAILTO_RE = /href\s*=\s*["']?\s*mailto:([^"'>\s?]+)/gi;
+
+/** 从原始 HTML 提取 mailto: 链接地址（不含 ?subject 等参数，URL 解码） */
+export function extractMailtoLinks(html: string): string[] {
+  const out: string[] = [];
+  for (const m of html.matchAll(MAILTO_RE)) {
+    const addr = decodeURIComponent(m[1] ?? '').trim();
+    if (addr) out.push(addr);
+  }
+  return out;
 }
 
 /**
  * 从页面纯文本 + mailto 链接里提取有效企业邮箱（小写去重）。
- * @param text  cheerio 解析后的 body 文本
+ * @param text  页面纯文本
  * @param mailto 页面中的 mailto: 地址
  */
 export function extractEmails(text: string, mailto: string[] = []): string[] {

@@ -36,6 +36,8 @@ const envSchema = z.object({
   COLLECTOR_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   COLLECTOR_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
   COLLECTOR_MAX_RESULTS_PER_KEYWORD: z.coerce.number().int().min(1).max(20).default(10),
+  // EDGAR 10-K enrich 并发：每路会整份缓冲年报 HTML 并用 cheerio 解析，小内存机器需调低（1.8G 服务器用 2）
+  COLLECTOR_EDGAR_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(3),
   COLLECTOR_ENRICH_ENABLED: booleanFromEnv(true),
   COLLECTOR_SCORE_ENABLED: booleanFromEnv(true),
 });

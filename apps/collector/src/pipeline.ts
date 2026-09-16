@@ -131,7 +131,11 @@ export async function runCollect(
   // EDGAR 公司：从 10-K 年报提取公开邮箱并发现真实官网（官网抓取流程对虚拟域名不适用）
   if (enrichEnabled && edgarList.length > 0) {
     try {
-      const filingResults = await enrichEdgarFilings(edgarList, config.SEC_UA);
+      const filingResults = await enrichEdgarFilings(
+        edgarList,
+        config.SEC_UA,
+        config.COLLECTOR_EDGAR_CONCURRENCY
+      );
       for (const candidate of edgarList) {
         const result = filingResults.get(candidate.domain);
         if (!result) continue;
