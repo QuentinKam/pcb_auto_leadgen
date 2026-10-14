@@ -55,7 +55,7 @@ ssh -i ~/.ssh/new_aliyun.pem -N -L 8091:127.0.0.1:8091 root@47.251.97.20
 ## 3. 服务器目录与文件
 
 ```
-/opt/pcb-leadgen/                      代码根目录（rsync 自本机仓库）
+/opt/pcb-leadgen/                      代码根目录（git 仓库，CI 自动部署）
 ├── ecosystem.config.cjs               PM2 配置（600，含数据库密码）
 ├── facts/facts.json                   scorer 画像事实库（28KB）
 ├── apps/dashboard/dist/               看板静态产物（nginx 直接托管）
@@ -109,6 +109,30 @@ curl -s -o /dev/null -w '%{http_code}\n' http://47.251.97.20:8090/
 ---
 
 ## 5. 更新代码后重新部署
+
+### 5.1 自动部署（默认，2026-10-15 起）
+
+`git push origin main` 即触发 GitHub Actions（`.github/workflows/deploy.yml`）：
+
+1. 云端 runner SSH 上服务器，执行 `scripts/deploy-server.sh`
+2. `git fetch + reset --hard origin/main`（服务器代码以 GitHub main 为唯一事实源）
+3. `pnpm install`（npmmirror 镜像）→ 构建 dashboard → `pm2 restart` → nginx reload
+4. 健康检查：6 个内部端口 + 公网 8090 全部 200 才算成功，**任一不过则 CI 报红**
+
+- **纯文档变更不触发部署**（`**.md` / `docs/` / `blog/` / `.github/` 在 paths-ignore 中）
+- 也可在 Actions 页面 **Run workflow** 手动触发（workflow_dispatch）
+- 服务器首次 git 转换与备份：`/root/pcb-deploy-backups/`（源码包 + ecosystem/.env 专属包）
+- 服务器上**不要手改已跟踪文件**——下次部署 `reset --hard` 会丢弃；未跟踪文件
+  （`ecosystem.config.cjs`、`facts/`、`apps/*/.env`、`node_modules`、`dist`）不受影响
+- 回滚：服务器上 `git reset --hard <旧commit> && pm2 restart ecosystem.config.cjs --update-env`，
+  或从 `/root/pcb-deploy-backups/` 解包恢复
+
+所需 GitHub Secrets（已配置）：`SERVER_HOST` / `SERVER_USER` / `SERVER_SSH_KEY`。
+
+### 5.2 手动 rsync 部署（备用，CI 故障时）
+
+> ⚠️ 服务器现已是 git 仓库。rsync 会覆盖已跟踪文件，造成工作区脏乱，
+> 下次 CI 部署时被 `reset --hard` 丢弃——仅建议在 CI 不可用时应急使用。
 
 在本机仓库根目录执行：
 
