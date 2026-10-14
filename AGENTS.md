@@ -220,3 +220,22 @@ chore(config): bump biome to 2.0
 - **每次改完跑测试**：`bun test` 或 `pnpm test`
 - **遇到不确定的合规问题**：停下来问用户，不要擅自决定绕过 LinkedIn/邮件规则
 - **遇到需要 brew 安装的依赖**：停下来让用户手动安装（如 Playwright 浏览器、Redis）
+
+## 12. 套件关系（三个目录是一套，不是三个独立项目）
+
+PCB 获客套件的数据流：**知识 → 内容 → 线索**。三者同位于 `~/Documents/Projects/products/PCB_ALL/`：
+
+```
+pcb_knowledge_base/          知识源（行业 markdown，目前无 git 版本管理）
+  │  contentforge ingest pcb（在 aigc_base_knowledge/contentforge 下执行）
+  ↓
+aigc_base_knowledge/         ContentForge 内容生产线（独立 git 仓库）
+  contentforge/workspaces/pcb/registry/facts.json   事实登记册（git 跟踪，scorer 的素材）
+  │  scripts/sync-facts.sh（知识库更新后必须手动同步）
+  ↓
+pcb_auto_leadgen/            本仓库：scorer 消费 facts.json 做画像个性化
+```
+
+- **facts.json 不在本仓库**，源头是 aigc_base_knowledge 的登记册；服务器副本在 `/opt/pcb-leadgen/facts/facts.json`（ecosystem 的 `FACTS_JSON_PATH` 注入）；本地 `apps/scorer/.env` 的 `FACTS_JSON_PATH` 指向登记册实际路径
+- **知识库更新流程**：改 pcb_knowledge_base → contentforge 跑 `ingest pcb` 重新生成 facts.json → 在 aigc 仓库提交 → 跑 `scripts/sync-facts.sh`（上传 + MD5 校验 + 重启 scorer + 验证加载）
+- 改动任何一侧时，意识到自己是「一套」里的一个环节：比如 scorer 的 facts 相关代码（`apps/scorer/src/content/facts-loader.ts`）与登记册的字段格式（`id/claim/source/year/cat`）是契约
