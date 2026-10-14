@@ -7,7 +7,7 @@ set -euo pipefail
 REPO_DIR=/opt/pcb-leadgen
 REPO_URL=https://github.com/QuentinKam/pcb_auto_leadgen.git
 BRANCH=main
-HEALTH_PORTS=(3011 3012 3013 3021 3022 3023)
+HEALTH_PORTS=(3011 3012 3013 3014 3021 3022 3023 3024)
 PUBLIC_PROBE=http://47.251.97.20:8090/
 
 cd "$REPO_DIR"
