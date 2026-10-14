@@ -223,19 +223,32 @@ chore(config): bump biome to 2.0
 
 ## 12. 套件关系（三个目录是一套，不是三个独立项目）
 
-PCB 获客套件的数据流：**知识 → 内容 → 线索**。三者同位于 `~/Documents/Projects/products/PCB_ALL/`：
+PCB 获客套件的**数据流**：知识 → 内容 → 线索。三者同位于 `~/Documents/Projects/products/PCB_ALL/`，均为 GitHub 公开仓库（`QuentinKam/pcb_knowledge_base`、`QuentinKam/aigc_base_knowledge`、`QuentinKam/pcb_auto_leadgen`）：
 
 ```
-pcb_knowledge_base/          知识源（行业 markdown，目前无 git 版本管理）
-  │  contentforge ingest pcb（在 aigc_base_knowledge/contentforge 下执行）
+pcb_knowledge_base/          知识源（行业 markdown，git 仓库，2026-10-15 初始化）
+  │  contentforge ingest pcb（纯标准库，无 LLM 依赖）
   ↓
-aigc_base_knowledge/         ContentForge 内容生产线（独立 git 仓库）
+aigc_base_knowledge/         ContentForge 内容生产线（git 仓库）
   contentforge/workspaces/pcb/registry/facts.json   事实登记册（git 跟踪，scorer 的素材）
-  │  scripts/sync-facts.sh（知识库更新后必须手动同步）
+  │
   ↓
 pcb_auto_leadgen/            本仓库：scorer 消费 facts.json 做画像个性化
 ```
 
-- **facts.json 不在本仓库**，源头是 aigc_base_knowledge 的登记册；服务器副本在 `/opt/pcb-leadgen/facts/facts.json`（ecosystem 的 `FACTS_JSON_PATH` 注入）；本地 `apps/scorer/.env` 的 `FACTS_JSON_PATH` 指向登记册实际路径
-- **知识库更新流程**：改 pcb_knowledge_base → contentforge 跑 `ingest pcb` 重新生成 facts.json → 在 aigc 仓库提交 → 跑 `scripts/sync-facts.sh`（上传 + MD5 校验 + 重启 scorer + 验证加载）
+**服务器布局**（阿里云 47.251.97.20，三个套件全部常驻）：
+
+```
+/opt/pcb_knowledge_base/                    git clone（知识源）
+/opt/aigc_base_knowledge/                   git clone（ContentForge）
+  contentforge/workspaces/pcb/registry/facts.json   ← scorer 的 FACTS_JSON_PATH 直接指向这里
+  regenerate-facts.sh                       服务器本地脚本（不入库）：pull KB → ingest → 重启 scorer → 验证
+/opt/pcb-leadgen/                           git 仓库（CI 自动部署）
+```
+
+- 服务器 `workspace.json` 的 `kb_path` 已改为 `/opt/pcb_knowledge_base` 并设 `skip-worktree`（防 git pull 冲掉）；`facts.json` 与 `kbmeta/ingest_report.json` 同样 skip-worktree——服务器 ingest 产物本地优先，不被远端 Mac 版覆盖
+- ingest 是**确定性解析**（无 LLM key），Mac 与服务器产物逐字一致（仅元数据 `kb_path` 字段记录各自环境路径，scorer loader 不读该字段）
+- 本地 `apps/scorer/.env` 的 `FACTS_JSON_PATH` 指向 Mac 登记册实际路径；服务器侧由 ecosystem 的 `FACTS_JSON_PATH` 注入登记册路径
+- **知识库更新流程（服务器自治）**：改 pcb_knowledge_base 并 push → SSH 上服务器跑 `/opt/aigc_base_knowledge/regenerate-facts.sh`（一键 pull+ingest+重启+验证）
+- **Mac 侧快通道**：`scripts/sync-facts.sh`（本仓库）把 Mac 登记册 scp 上服务器并重启——适合不想 push 知识库的快速试验；正式更新仍以「push KB + 服务器 regenerate」为准
 - 改动任何一侧时，意识到自己是「一套」里的一个环节：比如 scorer 的 facts 相关代码（`apps/scorer/src/content/facts-loader.ts`）与登记册的字段格式（`id/claim/source/year/cat`）是契约

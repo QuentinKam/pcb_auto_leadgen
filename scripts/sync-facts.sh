@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
-# 同步 facts.json：ContentForge 事实登记册 → pcb_auto_leadgen 服务器
+# Mac 侧快通道：把本机 ContentForge 事实登记册直接推到服务器 scorer
 #
-# 套件数据流：
-#   pcb_knowledge_base/（知识源 markdown）
-#     → contentforge ingest pcb（在 aigc_base_knowledge/contentforge 跑）
+# 套件数据流（详见 AGENTS.md §12）：
+#   pcb_knowledge_base/（知识源）
+#     → contentforge ingest pcb
 #     → aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json
-#     → 本脚本 → 服务器 /opt/pcb-leadgen/facts/facts.json（scorer 消费）
+#     → 本脚本 → 服务器同路径登记册（scorer 的 FACTS_JSON_PATH 直接读它）
 #
-# 知识库内容有更新时，先在 contentforge 重新 ingest 生成 facts.json，
-# 再跑本脚本：上传 → MD5 校验 → 重启 demo/prod scorer → 真实代码路径验证加载。
+# 定位：快速试验通道。正式更新走服务器自治流程——
+#   push pcb_knowledge_base → SSH 跑 /opt/aigc_base_knowledge/regenerate-facts.sh
+# 本脚本覆盖的是服务器登记册（已设 skip-worktree），不会与 git pull 冲突。
 set -euo pipefail
 
 FACTS_SRC=${FACTS_SRC:-/Users/quentingam/Documents/Projects/products/PCB_ALL/aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json}
 SSH_KEY=${SSH_KEY:-$HOME/.ssh/new_aliyun.pem}
 SERVER=${SERVER:-root@47.251.97.20}
-REMOTE_DIR=/opt/pcb-leadgen/facts
+REMOTE_DIR=/opt/aigc_base_knowledge/contentforge/workspaces/pcb/registry
 
 [ -f "$FACTS_SRC" ] || { echo "源文件不存在: $FACTS_SRC"; exit 1; }
 
