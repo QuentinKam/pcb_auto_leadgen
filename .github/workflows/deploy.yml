@@ -1,0 +1,54 @@
+name: Deploy to Aliyun
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'blog/**'
+      - '.github/**'
+  workflow_dispatch:
+
+# 同一时间只允许一个部署；新触发排队执行，不取消进行中的部署
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: SSH 部署到阿里云服务器
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查 secrets 是否齐全
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          missing=0
+          for v in SERVER_HOST SERVER_USER SERVER_SSH_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::缺少 GitHub Secret: $v"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: SSH 执行部署脚本
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SERVER_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=30 \
+            "${SERVER_USER}@${SERVER_HOST}" 'bash -s' < scripts/deploy-server.sh
