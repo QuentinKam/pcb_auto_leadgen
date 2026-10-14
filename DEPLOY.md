@@ -39,8 +39,26 @@ ssh -i ~/.ssh/new_aliyun.pem -N -L 8091:127.0.0.1:8091 root@47.251.97.20
 | gateway | `127.0.0.1:3011` | `127.0.0.1:3021` |
 | scorer | `127.0.0.1:3012` | `127.0.0.1:3022` |
 | mailer (HTTP) | `127.0.0.1:3013` | `127.0.0.1:3023` |
+| collector (HTTP) | `127.0.0.1:3014` | `127.0.0.1:3024` |
 | 对外 nginx | `:8090` | `:8091` |
 | 数据 | 12 家公司 / 14 打分 / 12 画像 / 14 草稿 / 79 发送 | 空库（仅 tenant + user） |
+
+### 2.1 gateway 的下游地址必须由 PM2 注入
+
+gateway 代码里的下游默认值是**本机开发端口**（`SCORER_URL=3002` / `MAILER_URL=3003` /
+`COLLECTOR_URL=3004`），与服务器端口完全不同。所以每个 gateway 进程都必须在
+`ecosystem.config.cjs` 里按环境注入：
+
+| 进程 | 注入变量 |
+|---|---|
+| `pcb-demo-gateway` | `SCORER_URL=3012`、`MAILER_URL=3013`、`COLLECTOR_URL=3014` |
+| `pcb-prod-gateway` | `SCORER_URL=3022`、`MAILER_URL=3023`、`COLLECTOR_URL=3024` |
+| `pcb-demo/prod-collector` | `SCORER_URL=3012/3022`（采集完直接回调打分） |
+
+不注入的表现：服务都 `online`、`/health` 也全 200，但看板点「一键采集」报
+`Collector unavailable`、画像生成报 `Scorer unavailable`、邮件统计报 `Mailer unavailable`。
+collector 自身的 `apps/collector/.env`（含 dev 租户 ID、假库密码、`SCORER_URL=3002`）同理被
+PM2 env 覆盖，不需要手改。
 
 数据库账号：`pcb_user` @ `127.0.0.1:5432`，密码存放在服务器 `/root/.pcb_pgpw`（600 权限），未写入本仓库。
 
@@ -99,8 +117,8 @@ $SSH "pm2 logs pcb-prod-mailer --lines 50"
 $SSH "pm2 restart /opt/pcb-leadgen/ecosystem.config.cjs --update-env"
 $SSH "pm2 restart pcb-demo-gateway"
 
-# 健康检查（6 个服务都应返回 200）
-$SSH 'for p in 3011 3012 3013 3021 3022 3023; do echo -n ":$p "; curl -s -m 5 http://127.0.0.1:$p/health | head -c 60; echo; done'
+# 健康检查（8 个服务都应返回 200）
+$SSH 'for p in 3011 3012 3013 3014 3021 3022 3023 3024; do echo -n ":$p "; curl -s -m 5 http://127.0.0.1:$p/health | head -c 60; echo; done'
 
 # 公网自检
 curl -s -o /dev/null -w '%{http_code}\n' http://47.251.97.20:8090/
@@ -117,7 +135,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://47.251.97.20:8090/
 1. 云端 runner SSH 上服务器，执行 `scripts/deploy-server.sh`
 2. `git fetch + reset --hard origin/main`（服务器代码以 GitHub main 为唯一事实源）
 3. `pnpm install`（npmmirror 镜像）→ 构建 dashboard → `pm2 restart` → nginx reload
-4. 健康检查：6 个内部端口 + 公网 8090 全部 200 才算成功，**任一不过则 CI 报红**
+4. 健康检查：8 个内部端口 + 公网 8090 全部 200 才算成功，**任一不过则 CI 报红**
 
 - **纯文档变更不触发部署**（`**.md` / `docs/` / `blog/` / `.github/` 在 paths-ignore 中）
 - 也可在 Actions 页面 **Run workflow** 手动触发（workflow_dispatch）
@@ -267,6 +285,7 @@ sed -i 's#^FACTS_JSON_PATH=.*#FACTS_JSON_PATH=/opt/pcb-leadgen/facts/facts.json#
 | 8090 返回 `PROBE_OK` 而不是看板 | 之前的端口探测进程还占着 8090，nginx 抢不到端口（`nginx -t` 仍会通过，reload 也不报错） | `pkill -f PROBE_OK` 后 `nginx -s reload`；用 `ss -tlnp \| grep :8090` 确认属主是 nginx |
 | basic auth **不带凭据 401 正常，带正确凭据却 500** | htpasswd 文件放在了 `/www/server/panel/vhost/nginx/`，而宝塔把该目录设成 `drw------- root root`，nginx worker（www 身份）无法穿越读取；401 阶段还没读文件所以正常，真正校验时才失败 | 把 htpasswd 挪到 `/etc/nginx/`（755 路径）并 `chown root:www` + `chmod 640`；用 `sudo -u www test -r <file>` 验证可读性 |
 | 看板四个 Tab 全空但不报错 | `VITE_TENANT_ID` 与库里数据租户不一致 | 两边都必须是 `00000000-0000-0000-0000-000000000000` |
+| 服务全部 `online`、`/health` 全 200，但看板报 `Collector/SCORER/Mailer unavailable`、画像生成失败 | gateway 用的是代码里的**开发默认端口**（3002/3003/3004），服务器实际端口不是这些；collector 甚至根本没有起进程 | 在 `ecosystem.config.cjs` 给每个 gateway 注入对应环境的 `SCORER_URL`/`MAILER_URL`/`COLLECTOR_URL`，并补起 `pcb-demo-collector`(3014) / `pcb-prod-collector`(3024)（见 §2.1） |
 | 文件属主变成 `games` | rsync 保留本机 uid 501 | `chown -R root:root /opt/pcb-leadgen` |
 
 ---
