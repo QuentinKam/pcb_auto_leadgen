@@ -18,9 +18,9 @@ concurrency:
 jobs:
   deploy:
     name: SSH 部署到阿里云服务器
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: 检查 secrets 是否齐全
         env:
