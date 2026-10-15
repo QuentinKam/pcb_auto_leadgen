@@ -181,6 +181,19 @@ ssh -i ~/.ssh/new_aliyun.pem root@47.251.97.20 "
 **注意**：`apps/*/.env` 会被同步覆盖，服务器上特有的改动（如 `FACTS_JSON_PATH`，见 §8）
 需要重新执行 §8 的 `sed`，或改为只在 PM2 里注入。
 
+### 5.3 CI 故障排查
+
+**verify 门禁先于 deploy**（2026-10-16 起）：lint → build → test 全过才允许部署。
+门禁自带 PostgreSQL / Redis service container 与显式就绪等待；数据库迁移走
+`packages/db/migrate.ts`（drizzle-orm migrator，错误可见），迁移文件在 git 内
+（`packages/db/drizzle/`，曾被 `.gitignore` 的 `drizzle/` 规则误伤整个排除）。
+
+**`pnpm install` 被 kill（exit 137 / SIGKILL）= 服务器 OOM**：
+2026-10-16 实测过一次——安装进行到下载 playwright-core 时进程被杀，
+是服务器内存压力的瞬时现象，代码与门禁均无问题。恢复方式：
+Actions 页面对该 run **Re-run failed jobs**（只重跑 deploy，不重跑门禁）。
+若反复 OOM，先 `free -m` 看内存，考虑错峰部署或给服务器加内存。
+
 ---
 
 ## 6. 补齐 worker（真发信 / 自动 warmup）
