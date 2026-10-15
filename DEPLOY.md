@@ -22,9 +22,9 @@ ssh -i ~/.ssh/new_aliyun.pem -N -L 8091:127.0.0.1:8091 root@47.251.97.20
 # 然后浏览器打开 http://localhost:8091
 ```
 
-> ⚠️ **应用本身没有任何登录鉴权**（gateway 是 MVP，鉴权尚未实现），目前靠 nginx basic auth 兜底。
-> 演示环境（8090）有意保持公开——里面全是演示数据，方便直接把链接发给客户点。
-> **生产环境 8091 请勿去掉 basic auth**，除非已经接入了正式的应用层鉴权。
+> 生产环境（8091）已启用**真正的租户隔离**：gateway 开 `AUTH_MODE=required`，所有 `/api/*` 请求必须带 `Authorization: Bearer <JWT>`（JWT 内绑定租户，请求头无法冒充），详见 §7.1。nginx basic auth 退化为「登录层」（浏览器弹窗），JWT 才是「请求鉴权 + 强制租户」。
+> 演示环境（8090）有意保持公开——里面全是演示数据，且 gateway 鉴权保持 `off`，方便直接把链接发给客户点。
+> **生产环境 8091 请勿去掉 basic auth**（否则失去登录层，任何人都能换到 token）。
 
 ---
 
@@ -74,7 +74,7 @@ PM2 env 覆盖，不需要手改。
 
 ```
 /opt/pcb-leadgen/                      代码根目录（git 仓库，CI 自动部署）
-├── ecosystem.config.cjs               PM2 配置（600，含数据库密码）
+├── ecosystem.config.cjs               PM2 配置（600，含数据库密码 + JWT_SECRET）
 ├── facts/facts.json                   scorer 画像事实库（28KB）
 ├── apps/dashboard/dist/               看板静态产物（nginx 直接托管）
 └── apps/{gateway,scorer,mailer}/     以源码方式由 bun 直接运行
@@ -228,7 +228,7 @@ pm2 delete pcb-demo-send-worker
 
 ## 7. 生产环境 basic auth（已配置 ✅ 2026-09-10）
 
-看板**没有应用层鉴权**，所以生产环境在 nginx 层加了 HTTP Basic Auth（仅 8091；8090 演示环境有意保持公开）。
+生产环境有**两层防护**：① nginx 层 HTTP Basic Auth（登录层，仅 8091；8090 演示环境有意保持公开）；② gateway 应用层 `AUTH_MODE=required`（JWT 真隔离，见 §7.1）。Basic Auth 只解决「谁能打开看板」，JWT 才解决「请求强制绑定租户、杜绝跨租户读取」。
 
 | 项 | 值 |
 |---|---|
@@ -265,6 +265,33 @@ curl -u pcbadmin:$(cat /root/.pcb_basicauth_pass) -o /dev/null \
 ```
 
 ---
+
+### 7.1 应用层鉴权（JWT 真隔离，2026-10-16 启用）
+
+生产 gateway（`pcb-prod-gateway`）在 `ecosystem.config.cjs` 注入了 `AUTH_MODE=required` + `JWT_SECRET`：
+
+- 所有 `/api/*` 请求必须带 `Authorization: Bearer <JWT>`（也兼容 `X-Api-Key`，但 API Key 模式租户仍取自请求头、隔离不彻底，**当前只用 JWT 模式**）。
+- JWT 由 gateway 自建端点 `POST /api/auth/token` 签发：nginx 已用 basic auth 校验身份（浏览器自动带 `Authorization: Basic`），gateway 解出用户名后用 `JWT_SECRET` 签 HS256 JWT，payload 含 `sub` / `tenant_id` / `exp=12h`。该端点被 auth 中间件白名单放行，避免「要 token 才能拿 token」死循环。
+- **租户 ID 强制取自 token**：`resolveTenantId()` 在 required 模式下忽略 `X-Tenant-Id` 请求头——客户端无法用请求头冒充其他租户。实测：持租户 B 的 JWT + 伪造 `X-Tenant-Id: A` 仍只能读到 B 的数据。
+- 前端 `apps/dashboard/src/lib/api.ts` 改为 lazy 拿 token：首次请求遇 401 自动调 `/api/auth/token`（带 basic auth）换 JWT 缓存、重发带 `Bearer`；**一份前端同时兼容 8090/8091**（demo 的 `off` 模式首请求直接 200，不触发）。
+- nginx `pcb-prod.conf` 的 `location /api/` 已加 `proxy_set_header Authorization $http_authorization;`，把 basic auth 头透传给 token 端点。
+- 演示 gateway（`pcb-demo-gateway`）**不注入** `AUTH_MODE`/`JWT_SECRET`，保持 `off`——公开演示不需要鉴权。
+
+**验证（服务器实测）**：
+
+```bash
+PASS=$(cat /root/.pcb_basicauth_pass)
+# 无凭据 => 401（basic auth 登录层）
+curl -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8091/api/companies
+# basic auth 换 JWT token => 200 + {token,...}
+curl -s -u "pcbadmin:$PASS" -X POST http://127.0.0.1:8091/api/auth/token
+# 带 Bearer 访问 gateway => 200（JWT 真隔离，租户取自 token）
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer <token>" http://127.0.0.1:3021/api/companies
+```
+
+**轮换 JWT_SECRET**：改 `ecosystem.config.cjs` 顶部常量 → `pm2 restart pcb-prod-gateway --update-env` → `pm2 save`。文件 600、不入库；轮换后旧 token 立即失效（所有已登录会话需重新换 token）。
+
+**多租户隔离自测**（可选，证明隔离有效）：见本仓库 `.workbuddy/memory/` 2026-10-16 日志——在 demo 库插独立测试租户 + 起临时 required 模式 gateway，确认「JWT-B + 伪造 `X-Tenant-Id` 仍只读 B 数据、无法读 A」，验证后已清理。
 
 ## 8. 重置 / 重灌演示数据
 

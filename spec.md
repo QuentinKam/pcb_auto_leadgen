@@ -123,7 +123,7 @@ pcb_auto_leadgen/
 - **LinkedIn**：人在环半自动化，**不做批量自动抓取/私信**；Sales Navigator 导出 CSV → 系统导入 → 文案人工复制粘贴发送
 - **GDPR**（主攻欧洲）：数据保留期 24 个月、被遗忘权 API、LIA 合法利益评估文档、B2B 直接邮件援引合法利益
 - **CAN-SPAM**：每封含 unsubscribe 链接、发件人物理地址、退订请求 10 个工作日内生效
-- **数据隔离**：多租户 row-level security，租户间物理逻辑隔离
+- **数据隔离**：多租户 row-level security，租户间物理逻辑隔离。网关层已落地强制隔离——`AUTH_MODE=required` 模式下 `resolveTenantId()` 只取 JWT 内 `tenant_id`、忽略 `X-Tenant-Id` 请求头，客户端无法用请求头冒充其他租户（已在 demo 库插独立测试租户实测：持租户 B 的 JWT + 伪造 `X-Tenant-Id: A` 仍只能读 B 的数据）。
 - **robots.txt**：遵守目标站点爬取规则，不高频暴力抓取，间隔 ≥ 2s
 - **邮箱合规**：仅采集公开企业邮箱，不发送未授权个人邮箱
 
