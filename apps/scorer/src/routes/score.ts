@@ -1,10 +1,10 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, sql, isNull } from 'drizzle-orm';
-import { z } from 'zod';
-import { db, companies, leadScores } from '@pcb/db';
-import { scoreLead, SCORING_MODEL_VERSION } from '../scoring/index.ts';
+import { companies, db, leadScores } from '@pcb/db';
 import type { LeadScoreResponse } from '@pcb/types';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { SCORING_MODEL_VERSION, scoreLead } from '../scoring/index.ts';
 
 export const scoreRoutes = new Hono();
 
@@ -189,8 +189,7 @@ scoreRoutes.get('/company/:companyId/latest', async (c) => {
 function serializeScore(row: typeof leadScores.$inferSelect): LeadScoreResponse {
   const dims = row.dimensionBreakdown as LeadScoreResponse['dimensionBreakdown'];
   const evidence = (row.evidence ?? []) as LeadScoreResponse['evidence'];
-  const buyerFit =
-    dims.industryFit + dims.hardwareProductFit + dims.pcbRelevance + dims.companyFit;
+  const buyerFit = dims.industryFit + dims.hardwareProductFit + dims.pcbRelevance + dims.companyFit;
 
   return {
     id: row.id,

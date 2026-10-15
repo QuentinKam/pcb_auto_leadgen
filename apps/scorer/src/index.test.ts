@@ -1,15 +1,15 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { companies, contacts, db, leadScores, pool, tenants } from '@pcb/db';
 import { eq } from 'drizzle-orm';
-import { db, pool, tenants, companies, contacts, leadScores } from '@pcb/db';
 
 import {
+  SCORING_MODEL_VERSION,
+  scoreDemand,
+  scoreHardwareFit,
   scoreIndustry,
   scoreKeywords,
-  scoreHardwareFit,
-  scoreDemand,
-  scoreNegative,
   scoreLead,
-  SCORING_MODEL_VERSION,
+  scoreNegative,
 } from './scoring/index.ts';
 
 // 导入 Hono app（命名导出，不触发 server 启动）
@@ -99,7 +99,8 @@ describe('scoreKeywords (v2, PCB relevance 0-15, context-aware)', () => {
 
   test('self-described contract manufacturer stays manufacturer context', () => {
     const r = scoreKeywords({
-      description: 'We are a leading contract manufacturer providing electronics manufacturing services.',
+      description:
+        'We are a leading contract manufacturer providing electronics manufacturing services.',
       rawPayload: null,
     });
     expect(r.manufacturerContext).toBe(true);
@@ -144,7 +145,10 @@ describe('scoreHardwareFit (0-20)', () => {
   });
 
   test('no hardware signals gets 0', () => {
-    const r = scoreHardwareFit({ description: 'We provide consulting services.', rawPayload: null });
+    const r = scoreHardwareFit({
+      description: 'We provide consulting services.',
+      rawPayload: null,
+    });
     expect(r.score).toBe(0);
   });
 });

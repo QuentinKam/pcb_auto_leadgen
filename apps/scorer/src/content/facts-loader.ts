@@ -20,6 +20,14 @@ const DEFAULT_FACTS_PATH =
     import.meta.url
   ).pathname;
 
+/**
+ * 当前生效的 facts.json 路径
+ * 供测试判断外部依赖是否就绪：CI 上没有 ContentForge 仓库时应跳过而非失败
+ */
+export function getFactsPath(): string {
+  return DEFAULT_FACTS_PATH;
+}
+
 let cachedFacts: IndustryFact[] | null = null;
 let cacheLoadedAt = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -138,7 +146,7 @@ function scoreFact(
     productTypes: string[];
     customerType: string;
     painPoints: string[];
-    industry: string | null | undefined;
+    industry?: string | null;
   }
 ): number {
   let score = 0;

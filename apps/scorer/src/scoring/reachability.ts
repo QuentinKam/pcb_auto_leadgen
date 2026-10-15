@@ -31,7 +31,7 @@ export function scoreReachability(
     };
   }
 
-  const hasLinkedIn = Boolean(contact.linkedinUrl && contact.linkedinUrl.trim());
+  const hasLinkedIn = Boolean(contact.linkedinUrl?.trim());
   const emailStatus = contact.emailVerified ?? 'unknown';
 
   if (emailStatus === 'valid') {

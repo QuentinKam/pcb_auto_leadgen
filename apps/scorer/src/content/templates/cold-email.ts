@@ -1,5 +1,5 @@
+import type { ContentVariant, ParsedContent, TemplateContext } from '../types.ts';
 import { ContentTemplate } from './base.ts';
-import type { TemplateContext, ContentVariant, ParsedContent } from '../types.ts';
 
 /**
  * 开发信模板（cold email）
@@ -79,18 +79,20 @@ BODY:
     return { system, user };
   }
 
-  override parseOutput(text: string): ParsedContent {
+  override parseOutput(text: string, ctx: TemplateContext): ParsedContent {
     const subjectMatch = text.match(/^SUBJECT:\s*(.+)$/im);
     const bodyMatch = text.match(/^BODY:\s*([\s\S]*)$/im);
 
     const subject = subjectMatch?.[1]?.trim() ?? '';
-    const body = bodyMatch?.[1]?.trim() ?? text.trim();
-    const gaps = this.extractGaps(body);
+    const rawBody = bodyMatch?.[1]?.trim() ?? text.trim();
+    const gaps = this.extractGaps(rawBody);
+    const { valid, suspect } = this.resolveUsedFacts(rawBody, ctx);
 
     return {
       subject: subject || undefined,
-      body,
-      usedFacts: [],
+      body: this.stripFactMarkers(rawBody),
+      usedFacts: valid,
+      suspectFacts: suspect,
       gaps,
     };
   }

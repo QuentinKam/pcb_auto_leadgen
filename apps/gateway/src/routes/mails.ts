@@ -1,13 +1,15 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
+import { resolveTenantId } from '../middleware/auth.ts';
+import { type AppEnv, TRACE_HEADER, getTraceId } from '../middleware/trace.ts';
 
 const MAILER_URL = process.env.MAILER_URL ?? 'http://localhost:3003';
 const TIMEOUT_MS = 60_000;
 
-export const mailRoutes = new Hono();
+export const mailRoutes = new Hono<AppEnv>();
 
-function getForwardHeaders(c: Parameters<Parameters<Hono['use']>[1]>[0]) {
+function getForwardHeaders(c: Context<AppEnv>) {
   const headers = new Headers();
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   if (tenantId) headers.set('X-Tenant-Id', tenantId);
   const ct = c.req.header('Content-Type');
   if (ct) headers.set('Content-Type', ct);
@@ -15,6 +17,8 @@ function getForwardHeaders(c: Parameters<Parameters<Hono['use']>[1]>[0]) {
   if (accept) headers.set('Accept', accept);
   const auth = c.req.header('Authorization');
   if (auth) headers.set('Authorization', auth);
+  const traceId = getTraceId(c);
+  if (traceId) headers.set(TRACE_HEADER, traceId);
   return headers;
 }
 
@@ -24,7 +28,7 @@ mailRoutes.all('/*', async (c) => {
   const subpath = url.pathname.replace(/^\/api\/mails/, '') || '/';
   const targetUrl = `${MAILER_URL}${subpath}${url.search}`;
 
-  const headers = getForwardHeaders(c as never);
+  const headers = getForwardHeaders(c);
   if (subpath.startsWith('/webhook')) {
     const svixId = c.req.header('svix-id');
     const svixTs = c.req.header('svix-timestamp');
@@ -34,7 +38,7 @@ mailRoutes.all('/*', async (c) => {
     if (svixSig) headers.set('svix-signature', svixSig);
   }
 
-  let body: BodyInit | undefined;
+  let body: string | undefined;
   if (method !== 'GET' && method !== 'HEAD') {
     if (subpath.startsWith('/webhook')) {
       body = await c.req.text();

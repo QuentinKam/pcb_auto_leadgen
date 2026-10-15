@@ -7,7 +7,7 @@
  */
 
 import { collectCompanyText } from './context.ts';
-import { makeEvidence, type Evidence } from './evidence.ts';
+import { type Evidence, makeEvidence } from './evidence.ts';
 
 const HARDWARE_PRODUCT_TERMS = [
   'electronic device',
@@ -55,7 +55,12 @@ export function scoreHardwareFit(company: {
 }): HardwareFitResult {
   const { fields } = collectCompanyText(company);
   if (fields.length === 0) {
-    return { score: 0, matchedTerms: [], reason: 'No text to scan for hardware products', evidence: [] };
+    return {
+      score: 0,
+      matchedTerms: [],
+      reason: 'No text to scan for hardware products',
+      evidence: [],
+    };
   }
 
   const matched = new Map<string, { snippet: string; sourceUrl?: string }>();
@@ -86,15 +91,18 @@ export function scoreHardwareFit(company: {
       ? 'No hardware/electronic product signals found'
       : `Found ${matchedTerms.length} hardware product signals: ${matchedTerms.join(', ')}`;
 
-  const evidence = matchedTerms.slice(0, 5).map((term) => {
-    const hit = matched.get(term)!;
-    return makeEvidence({
-      signalType: 'hardware_product',
-      description: `Detected hardware product signal: "${term}"`,
-      snippet: hit.snippet,
-      sourceUrl: hit.sourceUrl,
-      confidence: 0.8,
-    });
+  const evidence = matchedTerms.slice(0, 5).flatMap((term) => {
+    const hit = matched.get(term);
+    if (!hit) return [];
+    return [
+      makeEvidence({
+        signalType: 'hardware_product',
+        description: `Detected hardware product signal: "${term}"`,
+        snippet: hit.snippet,
+        sourceUrl: hit.sourceUrl,
+        confidence: 0.8,
+      }),
+    ];
   });
 
   return { score, matchedTerms, reason, evidence };

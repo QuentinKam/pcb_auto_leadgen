@@ -1,5 +1,5 @@
+import type { ContentVariant, ParsedContent, TemplateContext } from '../types.ts';
 import { ContentTemplate } from './base.ts';
-import type { TemplateContext, ContentVariant, ParsedContent } from '../types.ts';
 
 /**
  * LinkedIn 私信模板
@@ -70,12 +70,14 @@ Write the LinkedIn DM message directly. No subject line, no labels, just the mes
     return { system, user };
   }
 
-  override parseOutput(text: string): ParsedContent {
-    const body = text.trim();
-    const gaps = this.extractGaps(body);
+  override parseOutput(text: string, ctx: TemplateContext): ParsedContent {
+    const rawBody = text.trim();
+    const gaps = this.extractGaps(rawBody);
+    const { valid, suspect } = this.resolveUsedFacts(rawBody, ctx);
     return {
-      body,
-      usedFacts: [],
+      body: this.stripFactMarkers(rawBody),
+      usedFacts: valid,
+      suspectFacts: suspect,
       gaps,
     };
   }

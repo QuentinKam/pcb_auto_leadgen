@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { api, type CollectSummary } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { type CollectSummary, api } from '@/lib/api';
+import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 
 const DEFAULT_KEYWORDS = '"printed circuit board"';
 
@@ -62,10 +62,10 @@ export function CollectPanel({ onSuccess }: CollectPanelProps) {
         {summary && !mutation.isError && (
           <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
             <p className="font-medium">
-              采集完成（耗时 {(summary.durationMs / 1000).toFixed(1)}s）：搜索命中 {summary.searchHits}，
-              新建公司 {summary.companiesCreated} / 更新 {summary.companiesUpdated}，
-              提取联系人 {summary.contactsCreated}，
-              完成打分 {summary.scored === null ? '未启用' : `${summary.scored} 条`}
+              采集完成（耗时 {(summary.durationMs / 1000).toFixed(1)}s）：搜索命中{' '}
+              {summary.searchHits}， 新建公司 {summary.companiesCreated} / 更新{' '}
+              {summary.companiesUpdated}， 提取联系人 {summary.contactsCreated}， 完成打分{' '}
+              {summary.scored === null ? '未启用' : `${summary.scored} 条`}
             </p>
             {summary.errors.length > 0 && (
               <ul className="mt-2 list-disc pl-5 text-xs text-green-700">

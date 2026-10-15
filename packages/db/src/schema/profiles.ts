@@ -1,15 +1,15 @@
 import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  text,
   foreignKey,
   index,
+  pgTable,
+  text,
+  timestamp,
   unique,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants.ts';
 import { companies } from './companies.ts';
+import { tenants } from './tenants.ts';
 
 /**
  * 客户画像（P2 内容生成的输入基础）

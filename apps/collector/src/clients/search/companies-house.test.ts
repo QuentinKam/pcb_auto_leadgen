@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'bun:test';
+import { beforeEach, describe, expect, it, vi } from 'bun:test';
 import { CompaniesHouseClient } from './companies-house.ts';
 
 const mockHttpRequest = vi.fn();

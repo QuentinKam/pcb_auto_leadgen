@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Dialog, DialogFooter, DialogButton } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { api, type LeadScoreItem } from '@/lib/api';
+import { Dialog, DialogButton, DialogFooter } from '@/components/ui/dialog';
+import { type LeadScoreItem, api } from '@/lib/api';
+import { useState } from 'react';
 
 interface OverrideDialogProps {
   lead: LeadScoreItem | null;
@@ -54,8 +54,8 @@ export function OverrideDialog({ lead, open, onClose, onSuccess }: OverrideDialo
       description={`当前分数 ${lead?.score ?? 0} / 模型等级 ${lead?.grade ?? '-'} → 最终等级 ${lead?.finalGrade ?? '-'}`}
     >
       <div className="space-y-4">
-        <div>
-          <label className="mb-2 block text-sm font-medium">目标等级</label>
+        <fieldset>
+          <legend className="mb-2 block text-sm font-medium">目标等级</legend>
           <div className="flex gap-2">
             {GRADE_OPTIONS.map((g) => (
               <Button
@@ -68,11 +68,14 @@ export function OverrideDialog({ lead, open, onClose, onSuccess }: OverrideDialo
               </Button>
             ))}
           </div>
-        </div>
+        </fieldset>
 
         <div>
-          <label className="mb-2 block text-sm font-medium">覆盖原因 *</label>
+          <label htmlFor="override-reason" className="mb-2 block text-sm font-medium">
+            覆盖原因 *
+          </label>
           <textarea
+            id="override-reason"
             className="min-h-[80px] w-full rounded-md border border-[var(--color-border)] bg-[var(--color-background)] p-3 text-sm"
             placeholder="例：客户暂停 PCB 采购，降级为 B"
             value={reason}

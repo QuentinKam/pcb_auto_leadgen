@@ -3,11 +3,13 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import 'dotenv/config';
 
-import { scoreRoutes } from './routes/score.ts';
+import { type AppEnv, traceMiddleware } from './middleware/trace.ts';
 import { contentRoutes } from './routes/content.ts';
+import { scoreRoutes } from './routes/score.ts';
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
+app.use('*', traceMiddleware());
 app.use('*', logger());
 app.use('*', secureHeaders());
 

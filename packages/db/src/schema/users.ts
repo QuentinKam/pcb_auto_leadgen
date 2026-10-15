@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, timestamp, boolean, foreignKey } from 'drizzle-orm/pg-core';
+import { boolean, foreignKey, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.ts';
 
 /**

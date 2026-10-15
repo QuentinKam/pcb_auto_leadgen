@@ -1,6 +1,6 @@
+import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { cn } from '@/lib/utils';
 import { Button } from './button';
 
 interface DialogProps {
@@ -25,7 +25,14 @@ export function Dialog({ open, onClose, title, description, children }: DialogPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/50"
+        role="presentation"
+        onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') onClose();
+        }}
+      />
       <div
         className={cn(
           'relative z-50 w-full max-w-lg rounded-lg border border-[var(--color-border)]',

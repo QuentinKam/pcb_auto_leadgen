@@ -3,17 +3,21 @@ import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import 'dotenv/config';
 
-import { companiesRoutes } from './routes/companies.ts';
+import { authMiddleware } from './middleware/auth.ts';
+import { type AppEnv, traceMiddleware } from './middleware/trace.ts';
 import { collectorsRoutes } from './routes/collectors.ts';
+import { companiesRoutes } from './routes/companies.ts';
 import { contactsRoutes } from './routes/contacts.ts';
 import { contentRoutes } from './routes/content.ts';
 import { leadScoresRoutes } from './routes/lead-scores.ts';
 import { mailRoutes } from './routes/mails.ts';
 import { tenantsRoutes } from './routes/tenants.ts';
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
-// 中间件
+// 中间件（顺序有依赖：trace 先生成链路 ID，auth 才能用它打日志）
+app.use('*', traceMiddleware());
+app.use('*', authMiddleware());
 app.use('*', logger());
 app.use('*', secureHeaders());
 

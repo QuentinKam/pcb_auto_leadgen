@@ -7,8 +7,8 @@
  * 不把 Demand 混入 Buyer Fit（Demand 单独维度），也不把规模当成强信号（prompt §6/§10）。
  */
 
-import type { Evidence } from './evidence.ts';
 import { scoreCompanyFit } from './company-fit.ts';
+import type { Evidence } from './evidence.ts';
 import { scoreHardwareFit } from './hardware-fit.ts';
 import { scoreIndustry } from './industry.ts';
 import { scoreKeywords } from './keywords.ts';

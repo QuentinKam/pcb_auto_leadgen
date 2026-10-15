@@ -1,7 +1,11 @@
-import { describe, test, expect, beforeEach } from 'bun:test';
-import { matchRelevantFacts, loadFacts } from './facts-loader.ts';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import { existsSync } from 'node:fs';
+import { getFactsPath, loadFacts, matchRelevantFacts } from './facts-loader.ts';
 
-describe('facts-loader', () => {
+// facts.json 由另一仓库（ContentForge）产出，CI 上不存在时应跳过这些用例
+const factsAvailable = existsSync(getFactsPath());
+
+describe.skipIf(!factsAvailable)('facts-loader', () => {
   beforeEach(async () => {
     await loadFacts();
   });

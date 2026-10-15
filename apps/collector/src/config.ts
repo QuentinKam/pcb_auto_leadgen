@@ -19,7 +19,15 @@ const envSchema = z.object({
   SCORER_URL: z.string().default(''),
 
   SEARCH_PROVIDER: z
-    .enum(['brave', 'duckduckgo', 'edgar', 'companies-house', 'opencorporates', 'tavily', 'serpapi'])
+    .enum([
+      'brave',
+      'duckduckgo',
+      'edgar',
+      'companies-house',
+      'opencorporates',
+      'tavily',
+      'serpapi',
+    ])
     .default('brave'),
   BRAVE_API_KEY: z.string().default(''),
   SEC_UA: z.string().default('PCBLeadGen contact@yourcompany.com'),

@@ -1,6 +1,6 @@
-import { describe, test, expect, afterAll } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
 import { eq } from 'drizzle-orm';
-import { db, pool, tenants, users, companies, leadScores } from './index.ts';
+import { companies, db, leadScores, pool, tenants, users } from './index.ts';
 
 describe('db smoke test', () => {
   let tenantId: string | undefined;

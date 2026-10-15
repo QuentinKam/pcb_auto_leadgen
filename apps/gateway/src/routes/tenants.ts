@@ -1,10 +1,11 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq } from 'drizzle-orm';
 import { db, tenants } from '@pcb/db';
-import { tenantCreateSchema, type TenantResponse } from '@pcb/types';
+import { type TenantResponse, tenantCreateSchema } from '@pcb/types';
+import { eq } from 'drizzle-orm';
+import { Hono } from 'hono';
+import type { AppEnv } from '../middleware/trace.ts';
 
-export const tenantsRoutes = new Hono();
+export const tenantsRoutes = new Hono<AppEnv>();
 
 /**
  * GET /api/tenants

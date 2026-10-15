@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { companies, contacts, emailCampaigns, emailSends } from '@pcb/db/schema';
-import { type Job, Queue, Worker } from 'bullmq';
+import { WARMUP_QUEUE_NAME, createWarmupQueue } from '@pcb/queue';
+import { type Job, Worker } from 'bullmq';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '../lib/db.ts';
 import type { SendJobPayload } from '../lib/queue.ts';
@@ -14,7 +15,6 @@ import { type ResendSendResult, resendClient } from '../lib/resend-client.ts';
 import { senderPool } from '../lib/sender-pool.ts';
 import { warmupConfig } from '../lib/warmup-config.ts';
 
-export const WARMUP_QUEUE_NAME = 'pcb-mailer-warmup';
 export const WARMUP_DAILY_CRON = process.env.WARMUP_DAILY_CRON ?? '0 2 * * *';
 export const WARMUP_SEND_INTERVAL_MS = Number(process.env.WARMUP_SEND_INTERVAL_MS ?? 3000);
 const WARMUP_OPEN_RATE = Number(process.env.WARMUP_SIM_OPEN_RATE ?? 0.75);
@@ -36,14 +36,11 @@ type WarmupSingleSendPayload = {
   bodyVariant: number;
 };
 
-export const warmupQueue = new Queue(WARMUP_QUEUE_NAME, {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 2,
-    backoff: { type: 'exponential', delay: 10_000 },
-    removeOnComplete: 500,
-    removeOnFail: 1000,
-  },
+export const warmupQueue = createWarmupQueue(redis, {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 10_000 },
+  removeOnComplete: 500,
+  removeOnFail: 1000,
 });
 
 export async function ensureDailyWarmupJobScheduled(): Promise<void> {
@@ -207,8 +204,7 @@ async function processDailyWarmup(job: Job<WarmupDailyJobPayload>): Promise<{
 // 未配置时回退为带域名后缀的默认值；联系人名前缀用 WARMUP_CONTACT_NAME_PREFIX。
 const WARMUP_COMPANY_NAME = process.env.WARMUP_COMPANY_NAME?.trim() || null;
 const WARMUP_COMPANY_WEBSITE = process.env.WARMUP_COMPANY_WEBSITE?.trim() || null;
-const WARMUP_CONTACT_NAME_PREFIX =
-  process.env.WARMUP_CONTACT_NAME_PREFIX?.trim() || 'Warmup Seed';
+const WARMUP_CONTACT_NAME_PREFIX = process.env.WARMUP_CONTACT_NAME_PREFIX?.trim() || 'Warmup Seed';
 
 async function ensureWarmupCompanyAndContact(
   tenantId: string,
@@ -283,7 +279,11 @@ async function processWarmupSend(job: Job<WarmupSingleSendPayload>): Promise<{
 
   try {
     const campaignId = await ensureWarmupCampaign(tenantId);
-    const { companyId, contactId } = await ensureWarmupCompanyAndContact(tenantId, domain, seedEmail);
+    const { companyId, contactId } = await ensureWarmupCompanyAndContact(
+      tenantId,
+      domain,
+      seedEmail
+    );
     const { subject, text } = await buildWarmupBody(bodyVariant);
     const fromStr = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
 

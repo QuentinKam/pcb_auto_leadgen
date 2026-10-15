@@ -6,7 +6,14 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": ["node_modules", "dist", ".turbo", "coverage"]
+    "ignore": [
+      "node_modules",
+      "dist",
+      ".turbo",
+      "coverage",
+      "**/tsconfig.json",
+      "**/tsconfig.*.json"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -26,5 +33,20 @@
       "semicolons": "always",
       "trailingCommas": "es5"
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/*.test.ts", "**/*.test.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noNonNullAssertion": "off"
+          },
+          "performance": {
+            "noDelete": "off"
+          }
+        }
+      }
+    }
+  ]
 }

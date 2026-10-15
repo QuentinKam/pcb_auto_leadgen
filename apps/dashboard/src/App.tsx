@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LeadsPage } from '@/pages/LeadsPage';
-import { ContentReviewPage } from '@/pages/ContentReviewPage';
 import { CampaignsPage } from '@/pages/CampaignsPage';
+import { ContentReviewPage } from '@/pages/ContentReviewPage';
 import { EmailSendsPage } from '@/pages/EmailSendsPage';
+import { LeadsPage } from '@/pages/LeadsPage';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState } from 'react';
 
 const queryClient = new QueryClient({
   defaultOptions: {

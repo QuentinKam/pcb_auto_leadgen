@@ -1,14 +1,14 @@
 import { chat } from './llm.ts';
-import { ContentTemplate } from './templates/base.ts';
+import type { ContentTemplate } from './templates/base.ts';
 import { ColdEmailTemplate } from './templates/cold-email.ts';
-import { LinkedInDmTemplate } from './templates/linkedin-dm.ts';
 import { IndustryBlogTemplate } from './templates/industry-blog.ts';
+import { LinkedInDmTemplate } from './templates/linkedin-dm.ts';
 import type {
-  TemplateContext,
-  ContentFormat,
-  ContentVariant,
-  ContentResult,
   BrandInfo,
+  ContentFormat,
+  ContentResult,
+  ContentVariant,
+  TemplateContext,
 } from './types.ts';
 
 /**
@@ -36,6 +36,23 @@ export function getBrandInfo(): BrandInfo {
       process.env.BRAND_INDUSTRIES ?? 'Industrial, Medical, Automotive, Consumer'
     ).split(','),
   };
+}
+
+export type DraftReusePolicy = 'reuse' | 'regenerate';
+
+/**
+ * 同参数重复提交时的草稿策略
+ *
+ * 生成一次要真实调 LLM（花钱 + 有延迟），重复点击不应重复计费、
+ * 也不应在列表里堆重复草稿。force=true 用于「重新生成」按钮：
+ * 此时必须先清掉旧的 generated 草稿再生成，否则只会越积越多。
+ */
+export function decideDraftReuse(
+  force: boolean | undefined,
+  existingGenerated: number
+): DraftReusePolicy {
+  if (force || existingGenerated === 0) return 'regenerate';
+  return 'reuse';
 }
 
 /**
@@ -67,7 +84,7 @@ export async function generateContent(
     }
   );
 
-  const parsed = template.parseOutput(raw);
+  const parsed = template.parseOutput(raw, ctx);
 
   return {
     format,

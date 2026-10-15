@@ -1,8 +1,8 @@
 import type { DimensionBreakdown } from '@pcb/types';
 import { scoreBuyerFit } from './buyer-fit.ts';
 import { scoreDemand } from './demand.ts';
-import { scoreNegative } from './negative.ts';
 import type { Evidence } from './evidence.ts';
+import { scoreNegative } from './negative.ts';
 
 export * from './industry.ts';
 export * from './keywords.ts';
@@ -57,11 +57,7 @@ export function scoreLead(company: ScoreCompanyInput): LeadScoreResult {
   const demand = scoreDemand(company);
   const negative = scoreNegative(company);
 
-  const finalScore = clamp(
-    buyerFit.score + demand.score - negative.penalty,
-    0,
-    100
-  );
+  const finalScore = clamp(buyerFit.score + demand.score - negative.penalty, 0, 100);
 
   const grade: 'A' | 'B' | 'C' = finalScore >= 75 ? 'A' : finalScore >= 50 ? 'B' : 'C';
 
@@ -71,7 +67,11 @@ export function scoreLead(company: ScoreCompanyInput): LeadScoreResult {
     negativePenalty: negative.penalty,
   };
 
-  const evidence: Evidence[] = [...buyerFit.evidence, ...demand.signals.map((s) => s.evidence), ...negative.signals];
+  const evidence: Evidence[] = [
+    ...buyerFit.evidence,
+    ...demand.signals.map((s) => s.evidence),
+    ...negative.signals,
+  ];
 
   const reason = [
     buyerFit.reason,

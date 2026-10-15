@@ -1,17 +1,19 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, sql, desc } from 'drizzle-orm';
-import { db, companies } from '@pcb/db';
-import { companyCreateSchema, type CompanyResponse } from '@pcb/types';
+import { companies, db } from '@pcb/db';
+import { type CompanyResponse, companyCreateSchema } from '@pcb/types';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { resolveTenantId } from '../middleware/auth.ts';
+import type { AppEnv } from '../middleware/trace.ts';
 
-export const companiesRoutes = new Hono();
+export const companiesRoutes = new Hono<AppEnv>();
 
 /**
  * GET /api/companies?page=1&pageSize=20
  * 列出当前租户的企业
  */
 companiesRoutes.get('/', async (c) => {
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   if (!tenantId) {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
   }
@@ -59,7 +61,7 @@ companiesRoutes.get('/', async (c) => {
  */
 companiesRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   if (!tenantId) {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
   }
@@ -106,9 +108,13 @@ companiesRoutes.post(
   }),
   async (c) => {
     const input = c.req.valid('json') as Omit<typeof companies.$inferInsert, 'tenantId'>;
+    const tenantId = resolveTenantId(c);
+    if (!tenantId) {
+      return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
+    }
     const [row] = await db
       .insert(companies)
-      .values({ ...input, tenantId: c.req.header('X-Tenant-Id')! })
+      .values({ ...input, tenantId })
       .returning();
     if (!row) {
       return c.json({ error: 'Failed to create company', code: 'INSERT_FAILED' }, 500);

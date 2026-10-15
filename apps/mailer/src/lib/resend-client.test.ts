@@ -1,4 +1,4 @@
-import { describe, test, expect, mock } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
 
 let fakeSendResponse: unknown;
 let capturedPayload: Record<string, unknown> | null = null;

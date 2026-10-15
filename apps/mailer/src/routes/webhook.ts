@@ -2,8 +2,8 @@ import { contacts, emailCampaigns, emailEvents, emailSends } from '@pcb/db/schem
 import { and, countDistinct, eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../lib/db.ts';
-import { redis } from '../lib/redis.ts';
 import { suspendDomain } from '../lib/quota.ts';
+import { redis } from '../lib/redis.ts';
 import { verifyResendWebhookSignature } from '../lib/resend-client.ts';
 
 const app = new Hono();

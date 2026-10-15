@@ -98,5 +98,7 @@ export interface ParsedContent {
   subject?: string;
   body: string;
   usedFacts: string[];
+  /** 正文中出现但未在注入事实包中的 ID —— 疑似幻觉引用，需人工留意 */
+  suspectFacts: string[];
   gaps: string[];
 }

@@ -1,8 +1,8 @@
-import { pgTable, uuid, varchar, timestamp, text, foreignKey, index } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants.ts';
+import { foreignKey, index, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { companies } from './companies.ts';
 import { contacts } from './contacts.ts';
 import { profiles } from './profiles.ts';
+import { tenants } from './tenants.ts';
 
 /**
  * 内容草稿（P2 个性化触达内容）

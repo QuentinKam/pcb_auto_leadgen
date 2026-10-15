@@ -1,20 +1,20 @@
+import { sql } from 'drizzle-orm';
 import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  integer,
-  text,
-  jsonb,
   boolean,
   foreignKey,
   index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
   uniqueIndex,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
-import { tenants } from './tenants.ts';
 import { companies } from './companies.ts';
 import { contacts } from './contacts.ts';
+import { tenants } from './tenants.ts';
 
 /**
  * 打分记录

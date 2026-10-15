@@ -68,7 +68,9 @@ describe('DuckDuckGoSearchClient', () => {
   });
 
   test('空 HTML 返回空数组', async () => {
-    const client = createClient(async () => new Response('<html><body></body></html>', { status: 200 }));
+    const client = createClient(
+      async () => new Response('<html><body></body></html>', { status: 200 })
+    );
     expect(await client.search({ keyword: 'x' })).toEqual([]);
   });
 });

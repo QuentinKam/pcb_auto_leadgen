@@ -65,7 +65,7 @@ export class CompaniesHouseClient implements SearchClient {
       `${this.endpoint}/search/companies?${params}`,
       {
         headers: {
-          Authorization: `Basic ${btoa(this.apiKey + ':')}`,
+          Authorization: `Basic ${btoa(`${this.apiKey}:`)}`,
           Accept: 'application/json',
         },
         throttleKey: 'api.companyhouse.gov.uk',
@@ -83,10 +83,9 @@ export class CompaniesHouseClient implements SearchClient {
         .join(', ');
       return {
         title: item.title ?? 'Unknown',
-        url:
-          item.company_number
-            ? `https://find-and-update.company-information.service.gov.uk/company/${item.company_number}`
-            : '',
+        url: item.company_number
+          ? `https://find-and-update.company-information.service.gov.uk/company/${item.company_number}`
+          : '',
         snippet:
           [
             item.company_type ? `Type: ${item.company_type}` : null,

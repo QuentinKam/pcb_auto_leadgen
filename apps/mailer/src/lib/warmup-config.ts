@@ -96,7 +96,11 @@ function loadSeedEmailsFromEnv(): string[] {
       return [];
     }
     const filtered = parsed
-      .map((e) => String(e ?? '').trim().toLowerCase())
+      .map((e) =>
+        String(e ?? '')
+          .trim()
+          .toLowerCase()
+      )
       .filter((e) => /.+@.+\..+/.test(e));
     const deduped = Array.from(new Set(filtered));
     const duplicates = filtered.length - deduped.length;
@@ -107,7 +111,10 @@ function loadSeedEmailsFromEnv(): string[] {
     }
     return deduped;
   } catch (err) {
-    console.warn('[warmup-config] WARMUP_SEED_EMAILS JSON.parse 失败，回退为空：', (err as Error).message);
+    console.warn(
+      '[warmup-config] WARMUP_SEED_EMAILS JSON.parse 失败，回退为空：',
+      (err as Error).message
+    );
     return [];
   }
 }

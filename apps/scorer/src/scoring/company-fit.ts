@@ -5,7 +5,7 @@
  * 而不是决定「是不是客户」。因此这里只给较低的分数，不再把 50-500 员工当作强 Buyer Fit。
  */
 
-import { makeEvidence, type Evidence } from './evidence.ts';
+import { type Evidence, makeEvidence } from './evidence.ts';
 
 const MAX_SCORE = 10;
 
@@ -45,8 +45,7 @@ export function scoreCompanyFit(company: {
     );
   }
 
-  const reason =
-    reasons.length > 0 ? reasons.join('; ') : 'No size or funding data available';
+  const reason = reasons.length > 0 ? reasons.join('; ') : 'No size or funding data available';
 
   return { score, reason, evidence };
 }

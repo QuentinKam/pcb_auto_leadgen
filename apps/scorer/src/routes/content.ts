@@ -1,15 +1,26 @@
 import { zValidator } from '@hono/zod-validator';
 import { companies, contacts, contentDrafts, db, leadScores, profiles } from '@pcb/db';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { matchRelevantFacts } from '../content/facts-loader.ts';
-import { generateContent, generateContentAB, getBrandInfo } from '../content/generator.ts';
+import {
+  decideDraftReuse,
+  generateContent,
+  generateContentAB,
+  getBrandInfo,
+} from '../content/generator.ts';
 import { getActiveModelName } from '../content/llm.ts';
-import { generateProfile } from '../content/profile.ts';
-import type { ContentFormat, ContentVariant, ProfileResult } from '../content/types.ts';
+import { type ProfileGeneration, generateProfile } from '../content/profile.ts';
+import type {
+  ContentFormat,
+  ContentResult,
+  ContentVariant,
+  ProfileResult,
+} from '../content/types.ts';
+import { type AppEnv, getTraceId } from '../middleware/trace.ts';
 
-export const contentRoutes = new Hono();
+export const contentRoutes = new Hono<AppEnv>();
 
 /**
  * GET /content/profile/:companyId
@@ -65,9 +76,9 @@ contentRoutes.post('/profile/:companyId', async (c) => {
     ? `${item1}\n\nSEC filing metadata: ${company.description ?? ''}`
     : company.description;
 
-  let profileResult: ProfileResult;
+  let generation: ProfileGeneration;
   try {
-    profileResult = await generateProfile(company.name, profileInput, company.industry);
+    generation = await generateProfile(company.name, profileInput, company.industry);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('API_KEY is not set')) {
@@ -81,6 +92,14 @@ contentRoutes.post('/profile/:companyId', async (c) => {
       );
     }
     throw err;
+  }
+
+  const profileResult = generation.profile;
+
+  if (generation.degraded) {
+    console.warn(
+      `[scorer][profile] trace=${getTraceId(c)} degraded company=${companyId} error=${generation.error}`
+    );
   }
 
   // upsert：已存在则更新，不存在则插入
@@ -124,7 +143,11 @@ contentRoutes.post('/profile/:companyId', async (c) => {
     return c.json({ error: 'Failed to save profile', code: 'SAVE_FAILED' }, 500);
   }
 
-  return c.json(saved, 201);
+  // degraded=true 时 profile 是兜底值，前端据此提示「画像生成失败，可重试」
+  return c.json(
+    { ...saved, degraded: generation.degraded, degradationError: generation.error },
+    201
+  );
 });
 
 /**
@@ -137,6 +160,8 @@ const generateSchema = z.object({
   contactId: z.string().uuid().optional(),
   format: z.enum(['cold_email', 'linkedin_dm', 'industry_blog']),
   variant: z.enum(['A', 'B']).optional(),
+  /** 忽略已有 generated 草稿强制重新生成（前端「重新生成」按钮使用） */
+  force: z.boolean().optional(),
 });
 
 contentRoutes.post(
@@ -155,7 +180,7 @@ contentRoutes.post(
       return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
     }
 
-    const { companyId, contactId, format, variant } = c.req.valid('json');
+    const { companyId, contactId, format, variant, force } = c.req.valid('json');
 
     // 查询公司
     const [company] = await db
@@ -181,6 +206,32 @@ contentRoutes.post(
         },
         400
       );
+    }
+
+    // 幂等：已有 generated 草稿时直接返回，避免重复点击重复烧 token、插重复草稿。
+    // force=true 时先清掉旧的 generated 草稿再重新生成，防止列表无限堆积。
+    const draftFilter = and(
+      eq(contentDrafts.tenantId, tenantId),
+      eq(contentDrafts.companyId, companyId),
+      eq(contentDrafts.format, format),
+      eq(contentDrafts.status, 'generated'),
+      contactId ? eq(contentDrafts.contactId, contactId) : isNull(contentDrafts.contactId)
+    );
+
+    const existingDrafts = force
+      ? []
+      : await db
+          .select()
+          .from(contentDrafts)
+          .where(draftFilter)
+          .orderBy(desc(contentDrafts.createdAt));
+
+    if (decideDraftReuse(force, existingDrafts.length) === 'reuse') {
+      return c.json(existingDrafts, 200);
+    }
+
+    if (force) {
+      await db.delete(contentDrafts).where(draftFilter);
     }
 
     // 查询联系人（可选）
@@ -238,7 +289,8 @@ contentRoutes.post(
     };
 
     // 生成内容
-    let results;
+    const startedAt = Date.now();
+    let results: Array<Omit<ContentResult, 'id' | 'status'>>;
     try {
       results = variant
         ? [await generateContent(ctx, format as ContentFormat, variant as ContentVariant)]
@@ -255,8 +307,15 @@ contentRoutes.post(
           503
         );
       }
+      console.error(
+        `[scorer][generate] trace=${getTraceId(c)} failed company=${companyId} format=${format} ms=${Date.now() - startedAt} error=${msg}`
+      );
       throw err;
     }
+
+    console.log(
+      `[scorer][generate] trace=${getTraceId(c)} ok company=${companyId} format=${format} variants=${results.length} ms=${Date.now() - startedAt}`
+    );
 
     // 写入 content_drafts 表
     const saved = await Promise.all(

@@ -1,5 +1,16 @@
-import { chatJson } from './llm.ts';
-import type { ProfileResult, CustomerType } from './types.ts';
+import { chatJsonWithFallback } from './llm.ts';
+import type { CustomerType, ProfileResult } from './types.ts';
+
+/**
+ * 画像生成结果
+ * degraded=true 表示 LLM 不可用，profile 是兜底值而非真实分析结果
+ * —— 保留它而不是报错，是为了让批量采集流水线不被单点故障卡死
+ */
+export interface ProfileGeneration {
+  profile: ProfileResult;
+  degraded: boolean;
+  error: string | null;
+}
 
 /**
  * 客户画像 Agent
@@ -63,7 +74,7 @@ export async function generateProfile(
   companyName: string,
   companyDescription: string | null | undefined,
   industry?: string | null
-): Promise<ProfileResult> {
+): Promise<ProfileGeneration> {
   const description = companyDescription?.trim() || 'No description available.';
 
   const userPrompt = `Company: ${companyName}
@@ -73,21 +84,32 @@ ${description}
 
 Analyze this company and output the profile JSON.`;
 
-  const result = await chatJson<ProfileResult>(
+  const { data, degraded, error } = await chatJsonWithFallback<ProfileResult>(
     [
       { role: 'system', content: PROFILE_SYSTEM_PROMPT },
       { role: 'user', content: userPrompt },
     ],
+    {
+      businessSummary: 'unknown',
+      productTypes: [],
+      customerType: 'other' as CustomerType,
+      painPoints: [],
+      buyingSignals: [],
+    },
     { temperature: 0.3, maxTokens: 1500 }
   );
 
   // 防御性处理：确保所有字段存在且类型正确
   return {
-    businessSummary: result.businessSummary || 'unknown',
-    productTypes: Array.isArray(result.productTypes) ? result.productTypes : [],
-    customerType: normalizeCustomerType(result.customerType),
-    painPoints: Array.isArray(result.painPoints) ? result.painPoints : [],
-    buyingSignals: Array.isArray(result.buyingSignals) ? result.buyingSignals : [],
+    profile: {
+      businessSummary: data.businessSummary || 'unknown',
+      productTypes: Array.isArray(data.productTypes) ? data.productTypes : [],
+      customerType: normalizeCustomerType(data.customerType),
+      painPoints: Array.isArray(data.painPoints) ? data.painPoints : [],
+      buyingSignals: Array.isArray(data.buyingSignals) ? data.buyingSignals : [],
+    },
+    degraded,
+    error,
   };
 }
 

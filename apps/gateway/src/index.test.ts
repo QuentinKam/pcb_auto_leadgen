@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { auditLogs, companies, db, leadScores, pool, tenants, users } from '@pcb/db';
 import { eq } from 'drizzle-orm';
-import { db, pool, tenants, users, companies, leadScores, auditLogs } from '@pcb/db';
 
 // 导入 Hono app（命名导出，避免触发 default 的 server 启动）
 const appPromise = import('./index.ts').then((m) => m.app);

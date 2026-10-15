@@ -301,14 +301,27 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
   - 顺带修：apps/dashboard/tsconfig.app.json 加 `"ignoreDeprecations":"6.0"` 消 TS5101 baseUrl deprecated
   - 顺带修：apps/dashboard/src/pages/CampaignsPage.tsx 删未用 MailStatsResponse import 消 TS6133
 
-### 8.2 单元测试 ✅ 78/78 pass, 0 fail
-- [x] @pcb/types：16/16（zod schema 校验）
-- [x] @pcb/db：3/3
-- [x] @pcb/scorer：42/42（打分模型 + content/generator/facts-loader + profile）
-  - 顺带修：apps/scorer/.env 补 `FACTS_JSON_PATH=/Users/quentingam/Documents/aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json`，跨项目 facts.json 读不到 → 42/42 全绿
-- [x] @pcb/gateway：17/17（路由 handler 单测）
-- [x] @pcb/mailer / @pcb/dashboard：暂无 .test.ts，package.json 改 `bun test --pass-with-no-tests`（连字符，下划线参数无效）
-- [x] 2026-09-10 补：@pcb/mailer 新增 resend-client.test.ts 3 用例（SDK {data,error} 形态映射 + tag 清洗），全绿
+### 8.2 单元测试 ✅（2026-10-16 复核：195 pass / 0 fail）
+
+> ⚠️ 下方 §8.2 原始记录的「78/78」已过期，以本节为准。
+
+| 包 | 用例数 | 覆盖 |
+|---|---|---|
+| `@pcb/types` | 16 | zod schema 校验 |
+| `@pcb/db` | 3 | 级联 / 租户过滤 |
+| `@pcb/gateway` | 26 | 路由 handler + **鉴权中间件** |
+| `@pcb/scorer` | 76 | 打分模型 + facts-loader + **LLM 超时/重试/降级** + **内容评测集** |
+| `@pcb/collector` | 69 | 限流 / 熔断 / robots / 退避 / 字段映射 |
+| `@pcb/mailer` | 5 | Resend SDK 形态映射 + tag 清洗 |
+| **合计** | **195** | |
+
+- [x] 2026-09-10：@pcb/scorer 42/42，@pcb/gateway 17/17
+- [x] 2026-09-10 补：@pcb/mailer 新增 resend-client.test.ts 3 用例（SDK `{data,error}` 形态映射 + tag 清洗）
+- [x] 2026-10-16 补：@pcb/scorer `llm.test.ts` 10 用例（超时 / 429 退避 / 5xx 耗尽 / 401 终止 / 网络重试 / 降级 / 配置错误不吞）
+- [x] 2026-10-16 补：@pcb/scorer `eval.test.ts` 20 条评测集（正常 / 边界 / 对抗：提示注入、幻觉引用、超长输入）
+- [x] 2026-10-16 补：@pcb/gateway `auth.test.ts` 6 用例（off/required、无凭据 401、错 key 401、未配置 500、/health 与 OPTIONS 放行）
+- [x] 历史坑（未修，见 §13.3）：在仓库根目录直接 `bun test` 会失败（cwd 为根，不加载各包 `.env`），必须走 `pnpm test` 或进包目录跑
+- [x] 历史坑（未修，见 §13.3）：测试共享同一个 PostgreSQL，turbo 并行时偶发竞态（首次跑可能失败，重跑即绿）
 
 ### 8.3 DB 迁移 0002 ✅
 - [x] PostgreSQL 5432 运行中（pg_isready OK），Redis 6379 运行中（PONG OK）
@@ -496,10 +509,8 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 | `@pcb/scorer` | **38 pass / 4 fail**（共 42） |
 | 合计 | **79 pass / 4 fail**（共 83） |
 
-- **失败根因**：`apps/scorer/.env` 的 `FACTS_JSON_PATH` 写死绝对路径
-  `/Users/quentingam/Documents/aigc_base_knowledge/contentforge/workspaces/pcb/registry/facts.json`，
-  仓库迁入 `PCB_ALL/` 后该路径失效 → facts-loader 4 个用例读不到 facts.json
-- §8.2 记录的「78/78」已过期（该数字早于 mailer 新增用例；16+3+42+17=78）
+> ✅ 2026-10-16 已修复：`FACTS_JSON_PATH` 改为指向 PCB_ALL 下的实际路径，
+> scorer 用例 42/42 全绿。当前全仓库 195 pass / 0 fail，详见 §8.2。
 - **未写进文档的坑**：在仓库根目录直接 `bun test` 会失败（cwd 为根，不加载各包 `.env`），
   必须走 `pnpm test` 或进包目录跑
 
@@ -577,4 +588,75 @@ pcb_auto_leadgen（获客 Agent - 文档项目 1）
 - [ ] **【中】邮箱覆盖率 20-30% 的兜底**：大公司官网只有表单（Vuzix/Fitbit/Insulet 等）。可考虑后续接 Hunter 等邮箱推断 API（需 key）或联系人页表单识别（只标记「表单触达」不产出邮箱）
 - [ ] **【低】mailer send-worker 未纳入常驻保障**：它是独立进程（`pnpm --filter @pcb/mailer worker`），不起则发送永远 queued；生产 PM2/本机脚本均需单独拉起（start.command 已含，DEPLOY.md 生产刻意未启用 worker）
 - [ ] **【低】§九 与 §11 的旧表述**：start.command 已从 5 服务改 6 服务，本文 §九（行 335）描述未同步
+
+---
+
+## 十五、生产级加固（2026-10-16）
+
+> 背景：按「生产级八项」（幂等 / 超时 / 重试 / 限流 / 审计日志 / 成本上限 / 灰度回滚 / 评测集回归）
+> 做了一轮体检，修掉 2 个 P0、4 个 P1、4 个 P2。全部改动均在本地实跑验证。
+
+### 15.1 已完成
+
+**P0-a LLM 调用加固**（`apps/scorer/src/content/llm.ts`）
+- [x] 两个 provider 分支的 fetch 全部加 `AbortSignal.timeout()`，默认 60s，可用 `LLM_TIMEOUT_MS` 覆盖
+- [x] 加退避重试：`LLM_MAX_RETRIES` 默认 2，指数退避 500ms→1s→2s 加 0-250ms 抖动，上限 30s
+- [x] 尊重 `Retry-After`（同时支持秒数与 HTTP 日期两种形态）
+- [x] 新增 `LLMError` 错误分类：timeout / network / rate_limited / server 可重试；auth / client / parse 立即终止
+- [x] 新增 `chatWithFallback` / `chatJsonWithFallback`：LLM 不可用时返回兜底值并标记 `degraded`，不阻塞流水线
+- [x] 配置错误（API key 缺失）**不**被降级吞掉，保持 fail fast，路由层仍返回 503 `LLM_NOT_CONFIGURED`
+
+**P0-b gateway 鉴权**（`apps/gateway/src/middleware/auth.ts`）
+- [x] 新增可开关鉴权中间件：`AUTH_MODE=off`（默认，兼容现有联调）/ `required`
+- [x] 优先 JWT 校验（HMAC-SHA256，密钥来自 `JWT_SECRET`），租户 ID **从 token 解析**，请求头无法冒充
+- [x] 未配置 JWT 时回退静态 API Key（`GATEWAY_API_KEY` + `X-Api-Key` 头），常量时间比较防时序爆破
+- [x] `AUTH_MODE=required` 但两个凭据都没配 → 直接 500 `AUTH_MISCONFIGURED`，避免「以为开了其实没开`
+- [x] `/health` 与 OPTIONS 预检放行
+- [x] 语义区分：身份不合法 → 401；身份有效但缺租户头 → 400
+- [x] 所有业务路由的 `X-Tenant-Id` 直读改为 `resolveTenantId(c)`
+
+**P1-c trace_id 贯穿**（`apps/gateway/src/middleware/trace.ts` + scorer / collector 同名中间件）
+- [x] 网关统一生成或沿用 `X-Trace-Id`，响应头回传
+- [x] 字符集白名单校验，防止上游灌入换行/超长内容污染日志
+- [x] 三个代理路由（content / mails / collectors）转发时透传
+- [x] scorer / collector 自建 trace 中间件，下游日志可串联
+
+**P1-d LLM 评测集**（`apps/scorer/src/content/eval-cases.ts` + `eval.test.ts`）
+- [x] 20 条用例，分正常（9）/ 边界（5）/ 对抗（6）
+- [x] 对抗覆盖：提示注入、幻觉引用、空事实包引用、100KB 超长输入、HTML/脚本片段、嵌套伪造标记
+- [x] **修复了 usedFacts 追踪失效的真 bug**：三个模板的 `parseOutput` 都把 `usedFacts` 硬编码为 `[]`，
+  覆盖了基类实现 → 防编造闭环的关键一环是断的。现统一走 `resolveUsedFacts` 校验
+- [x] 新增 `suspectFacts`：正文中出现但不在注入事实包中的 ID 会被标记，避免误导业务员
+
+**P1-e 生成侧幂等**（`apps/scorer/src/routes/content.ts`）
+- [x] 已有 `generated` 草稿且未强制刷新 → 直接复用，不重复烧 token、不插重复草稿
+- [x] `force=true`（「重新生成」按钮）→ 先清旧草稿再生成，防止列表无限堆积
+- [x] 规则抽为纯函数 `decideDraftReuse` 并单测
+- [x] `contactId` 为空时用 `isNull` 匹配，避免漏判
+
+**P1-f CI 质量门禁**（`.github/workflows/deploy.yml`）
+- [x] 新增 `verify` job：lint → build → test
+- [x] `deploy` 加 `needs: verify`，门禁不过不部署
+- [x] 提供 PG 16 + Redis 7 service containers，跑迁移后再测试
+
+**P2 清理**
+- [x] biome.json 排除 tsconfig JSONC（消除 194 条 parse 误报）；修剩余 41 条真实诊断
+- [x] `packages/queue` 从 1 行占位改为真正的队列契约（队列名 / payload / 默认任务选项），mailer 改为引用
+- [x] 顺手修掉 3 个预存在类型错误（`contacts.ts` 非空断言、`reachability.ts` 可选链、`facts-loader.ts` 参数可选性）
+- [ ] `packages/ui`、`packages/config` 仍是占位（组件与构建配置抽取涉及 Tailwind/路径别名，风险较高，另开一轮）
+- [ ] `apps/mailer` / `apps/collector` 仍有约 58 行预存在类型错误（历史遗留，bun build 不做类型检查所以未暴露）
+
+### 15.2 验证结果
+
+| 项 | 结果 |
+|---|---|
+| `pnpm test` | 12/12 tasks 全绿 |
+| 单元测试总数 | **195**（types 16 / db 3 / gateway 26 / scorer 76 / collector 69 / mailer 5） |
+| `pnpm build` | 5/5 全绿 |
+| `pnpm lint` | **0 errors**（162 files） |
+
+### 15.3 部署注意
+
+生产环境（8091）需在 PM2 env 中注入 `AUTH_MODE=required` 及 `JWT_SECRET` 或 `GATEWAY_API_KEY`，
+否则鉴权仍为关闭状态。8090 演示环境建议保持 `off`（当前 nginx 无 basic auth）。
 

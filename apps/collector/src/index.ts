@@ -5,12 +5,14 @@ import { secureHeaders } from 'hono/secure-headers';
 import { z } from 'zod';
 import { SearchProviderConfigError } from './clients/search/factory.ts';
 import { loadConfig } from './config.ts';
+import { type AppEnv, getTraceId, traceMiddleware } from './middleware/trace.ts';
 import { runCollect } from './pipeline.ts';
 
 const config = loadConfig();
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
+app.use('*', traceMiddleware());
 app.use('*', logger());
 app.use('*', secureHeaders());
 
@@ -42,6 +44,11 @@ app.post(
   }),
   async (c) => {
     const body = c.req.valid('json');
+    const traceId = getTraceId(c);
+    console.log(
+      `[collector] trace=${traceId} collect start keywords=${body.keywords.join('/')} country=${body.country ?? '-'}`
+    );
+
     const summary = await runCollect(
       {
         keywords: body.keywords,
@@ -51,6 +58,10 @@ app.post(
         score: body.score,
       },
       config
+    );
+
+    console.log(
+      `[collector] trace=${traceId} collect done candidates=${summary.candidates} created=${summary.companiesCreated} contacts=${summary.contactsCreated} scored=${summary.scored} errors=${summary.errors.length} ms=${summary.durationMs}`
     );
     return c.json(summary);
   }

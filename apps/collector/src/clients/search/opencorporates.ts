@@ -88,7 +88,9 @@ export class OpenCorporatesClient implements SearchClient {
         url: result.opencorporates_url ?? '',
         snippet:
           [
-            company.jurisdiction_code ? `Country: ${company.jurisdiction_code.toUpperCase()}` : null,
+            company.jurisdiction_code
+              ? `Country: ${company.jurisdiction_code.toUpperCase()}`
+              : null,
             company.company_number ? `Reg #: ${company.company_number}` : null,
             company.company_type ? `Type: ${company.company_type}` : null,
             company.incorporation_date ? `Incorporated: ${company.incorporation_date}` : null,

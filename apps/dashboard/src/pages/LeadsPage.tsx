@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, contactsApi, type LeadScoreItem } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CollectPanel } from '@/components/CollectPanel';
 import { OverrideDialog } from '@/components/OverrideDialog';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { type LeadScoreItem, api, contactsApi } from '@/lib/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 
 const GRADE_BADGE: Record<'A' | 'B' | 'C', 'gradeA' | 'gradeB' | 'gradeC'> = {
   A: 'gradeA',
@@ -172,7 +172,9 @@ export function LeadsPage() {
                         className="border-b border-[var(--color-border)] hover:bg-[var(--color-accent)]"
                       >
                         <td className="p-3">
-                          <div className="font-medium">{companyMap.get(lead.companyId)?.name ?? '—'}</div>
+                          <div className="font-medium">
+                            {companyMap.get(lead.companyId)?.name ?? '—'}
+                          </div>
                           {companyMap.get(lead.companyId)?.website && (
                             <a
                               href={companyMap.get(lead.companyId)?.website ?? undefined}

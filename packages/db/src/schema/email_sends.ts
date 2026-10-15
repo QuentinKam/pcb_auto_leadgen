@@ -1,19 +1,19 @@
 import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  integer,
-  text,
   foreignKey,
   index,
+  integer,
+  pgTable,
   smallint,
+  text,
+  timestamp,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants.ts';
 import { companies } from './companies.ts';
 import { contacts } from './contacts.ts';
 import { contentDrafts } from './content_drafts.ts';
 import { emailCampaigns } from './email_campaigns.ts';
+import { tenants } from './tenants.ts';
 
 export const emailSends = pgTable(
   'email_sends',

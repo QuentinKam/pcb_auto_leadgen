@@ -9,7 +9,7 @@
  */
 
 import { collectCompanyText } from './context.ts';
-import { clamp01, makeEvidence, type Evidence } from './evidence.ts';
+import { type Evidence, clamp01, makeEvidence } from './evidence.ts';
 
 export type DemandTier = 1 | 2 | 3;
 

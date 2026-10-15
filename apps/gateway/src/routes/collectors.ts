@@ -1,11 +1,13 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { Hono } from 'hono';
 import { z } from 'zod';
+import { resolveTenantId } from '../middleware/auth.ts';
+import { type AppEnv, TRACE_HEADER, getTraceId } from '../middleware/trace.ts';
 
 const COLLECTOR_URL = process.env.COLLECTOR_URL ?? 'http://localhost:3004';
 const TIMEOUT_MS = 120_000;
 
-export const collectorsRoutes = new Hono();
+export const collectorsRoutes = new Hono<AppEnv>();
 
 const runSchema = z.object({
   keywords: z.array(z.string().min(1).max(200)).min(1).max(10),
@@ -32,9 +34,11 @@ collectorsRoutes.post(
   }),
   async (c) => {
     const headers = new Headers();
-    const tenantId = c.req.header('X-Tenant-Id');
+    const tenantId = resolveTenantId(c);
     if (tenantId) headers.set('X-Tenant-Id', tenantId);
     headers.set('Content-Type', 'application/json');
+    const traceId = getTraceId(c);
+    if (traceId) headers.set(TRACE_HEADER, traceId);
 
     try {
       const res = await fetch(`${COLLECTOR_URL}/collect`, {

@@ -1,5 +1,5 @@
+import type { ContentVariant, ParsedContent, TemplateContext } from '../types.ts';
 import { ContentTemplate } from './base.ts';
-import type { TemplateContext, ContentVariant, ParsedContent } from '../types.ts';
 
 /**
  * 行业博客模板（OPC 叙事预留）
@@ -68,7 +68,7 @@ BODY:
     return { system, user };
   }
 
-  override parseOutput(text: string): ParsedContent {
+  override parseOutput(text: string, ctx: TemplateContext): ParsedContent {
     const titleMatch = text.match(/^TITLE:\s*(.+)$/im);
     const metaMatch = text.match(/^META:\s*(.+)$/im);
     const bodyMatch = text.match(/^BODY:\s*([\s\S]*)$/im);
@@ -77,14 +77,16 @@ BODY:
     const meta = metaMatch?.[1]?.trim() ?? '';
     const body = bodyMatch?.[1]?.trim() ?? text.trim();
     const gaps = this.extractGaps(body);
+    const { valid, suspect } = this.resolveUsedFacts(body, ctx);
 
     // 把 title 和 meta 拼到 body 前面，作为 subject 存储 title
     const fullBody = meta ? `> ${meta}\n\n${body}` : body;
 
     return {
       subject: title || undefined,
-      body: fullBody,
-      usedFacts: [],
+      body: this.stripFactMarkers(fullBody),
+      usedFacts: valid,
+      suspectFacts: suspect,
       gaps,
     };
   }

@@ -9,7 +9,7 @@
  */
 
 import { collectCompanyText } from './context.ts';
-import { makeEvidence, type Evidence } from './evidence.ts';
+import { type Evidence, makeEvidence } from './evidence.ts';
 
 const PCB_BUYER_KEYWORDS = [
   'pcb',
@@ -171,10 +171,20 @@ export function scoreKeywords(company: {
         ]
       : [];
 
-  return { score, hitCount: totalHits, matchedKeywords: matched, manufacturerContext, reason, evidence };
+  return {
+    score,
+    hitCount: totalHits,
+    matchedKeywords: matched,
+    manufacturerContext,
+    reason,
+    evidence,
+  };
 }
 
-function firstSnippetContaining(fields: Array<{ value: string }>, needles: string[]): string | undefined {
+function firstSnippetContaining(
+  fields: Array<{ value: string }>,
+  needles: string[]
+): string | undefined {
   for (const field of fields) {
     const hay = field.value.toLowerCase();
     for (const needle of needles) {

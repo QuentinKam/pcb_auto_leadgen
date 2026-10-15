@@ -1,15 +1,15 @@
 import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
   boolean,
   foreignKey,
   index,
+  pgTable,
+  timestamp,
   unique,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants.ts';
 import { companies } from './companies.ts';
+import { tenants } from './tenants.ts';
 
 /**
  * 联系人

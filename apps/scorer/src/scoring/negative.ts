@@ -11,7 +11,7 @@
  */
 
 import { collectCompanyText } from './context.ts';
-import { makeEvidence, type Evidence } from './evidence.ts';
+import { type Evidence, makeEvidence } from './evidence.ts';
 import { detectPcbManufacturerContext, isSelfDescribedMatch } from './keywords.ts';
 
 /** Hard Negative（配置点）：目标为终端买家时，这些是供应商/服务商，直接 excluded */
@@ -57,7 +57,12 @@ export function scoreNegative(company: {
   const { fields, haystack } = collectCompanyText(company);
 
   if (!haystack) {
-    return { penalty: 0, excluded: false, signals: [], reason: 'No text to scan for negative signals' };
+    return {
+      penalty: 0,
+      excluded: false,
+      signals: [],
+      reason: 'No text to scan for negative signals',
+    };
   }
 
   // 外包语境（"we outsource to contract manufacturers"）下公司是买家，不算 hard negative
@@ -101,7 +106,10 @@ export function scoreNegative(company: {
   return { penalty: 0, excluded: false, signals: [], reason: 'No negative signal detected' };
 }
 
-function snippetContaining(fields: Array<{ value: string }>, needles: string[]): string | undefined {
+function snippetContaining(
+  fields: Array<{ value: string }>,
+  needles: string[]
+): string | undefined {
   for (const field of fields) {
     const hay = field.value.toLowerCase();
     for (const needle of needles) {

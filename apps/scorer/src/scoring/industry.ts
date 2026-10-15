@@ -13,7 +13,7 @@
  * 不在 target 列表内（见 scoring/negative.ts），避免把「PCB 制造商自身」误判为买家。
  */
 
-import { makeEvidence, type Evidence } from './evidence.ts';
+import { type Evidence, makeEvidence } from './evidence.ts';
 
 const TARGET_INDUSTRIES = new Set([
   'hardware',

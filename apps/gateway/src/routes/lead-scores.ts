@@ -1,14 +1,16 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq, desc, and, sql } from 'drizzle-orm';
-import { db, leadScores, auditLogs } from '@pcb/db';
+import { auditLogs, db, leadScores } from '@pcb/db';
 import {
+  type LeadScoreResponse,
   leadScoreListQuerySchema,
   leadScoreOverrideSchema,
-  type LeadScoreResponse,
 } from '@pcb/types';
+import { and, desc, eq, sql } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { resolveTenantId } from '../middleware/auth.ts';
+import type { AppEnv } from '../middleware/trace.ts';
 
-export const leadScoresRoutes = new Hono();
+export const leadScoresRoutes = new Hono<AppEnv>();
 
 /**
  * GET /api/lead-scores?page=1&pageSize=20&grade=A
@@ -27,7 +29,7 @@ leadScoresRoutes.get(
   }),
   async (c) => {
     const { page, pageSize, grade } = c.req.valid('query');
-    const tenantId = c.req.header('X-Tenant-Id');
+    const tenantId = resolveTenantId(c);
     if (!tenantId) {
       return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
     }
@@ -75,7 +77,7 @@ leadScoresRoutes.get(
  */
 leadScoresRoutes.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   if (!tenantId) {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
   }
@@ -111,7 +113,7 @@ leadScoresRoutes.patch(
   }),
   async (c) => {
     const id = c.req.param('id');
-    const tenantId = c.req.header('X-Tenant-Id');
+    const tenantId = resolveTenantId(c);
     const userId = c.req.header('X-User-Id');
     if (!tenantId) {
       return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);

@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, mailApi, contactsApi, type ContentDraft, type ContentFormat } from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { type ContentDraft, type ContentFormat, api, contactsApi, mailApi } from '@/lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 
 const COMPANY_PAGE_SIZE = 10;
 const CUSTOMER_TYPE_LABEL: Record<string, string> = {
@@ -47,6 +47,12 @@ interface CompanyRow {
   sizeBucket: string | null;
 }
 
+/** mutation 触发前把可空的选中态收窄成非空，避免 undefined 流进 API 调用 */
+function requireCompanyId(id: string | null): string {
+  if (!id) throw new Error('请先选择公司');
+  return id;
+}
+
 export function ContentReviewPage() {
   const [companyPage, setCompanyPage] = useState(1);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
@@ -71,7 +77,7 @@ export function ContentReviewPage() {
     refetch: refetchDrafts,
   } = useQuery({
     queryKey: ['contentDrafts', selectedCompanyId],
-    queryFn: () => api.listContentDrafts(selectedCompanyId!),
+    queryFn: () => api.listContentDrafts(requireCompanyId(selectedCompanyId)),
     enabled: !!selectedCompanyId,
   });
 
@@ -82,7 +88,7 @@ export function ContentReviewPage() {
   } = useQuery({
     queryKey: ['profile', selectedCompanyId],
     // 只读查询：切公司不再触发 LLM 生成，避免演示/使用时每次点击都等待十几秒
-    queryFn: () => api.getProfile(selectedCompanyId!),
+    queryFn: () => api.getProfile(requireCompanyId(selectedCompanyId)),
     enabled: !!selectedCompanyId,
     staleTime: 5 * 60 * 1000,
   });
@@ -101,8 +107,9 @@ export function ContentReviewPage() {
   const groupedByFormat = useMemo(() => {
     const map = new Map<ContentFormat, ContentDraft[]>();
     for (const d of filteredDrafts) {
-      if (!map.has(d.format)) map.set(d.format, []);
-      map.get(d.format)!.push(d);
+      const bucket = map.get(d.format) ?? [];
+      bucket.push(d);
+      map.set(d.format, bucket);
     }
     for (const list of map.values()) {
       list.sort((a, b) => a.variant.localeCompare(b.variant));
@@ -111,7 +118,7 @@ export function ContentReviewPage() {
   }, [filteredDrafts]);
 
   const regenerateProfile = useMutation({
-    mutationFn: () => api.generateProfile(selectedCompanyId!),
+    mutationFn: () => api.generateProfile(requireCompanyId(selectedCompanyId)),
     onSuccess: async () => {
       void queryClient.invalidateQueries({ queryKey: ['profile', selectedCompanyId] });
       await refetchProfile();
@@ -120,7 +127,7 @@ export function ContentReviewPage() {
 
   const generateContent = useMutation({
     mutationFn: (format: ContentFormat) =>
-      api.generateContent({ companyId: selectedCompanyId!, format }),
+      api.generateContent({ companyId: requireCompanyId(selectedCompanyId), format }),
     onSuccess: async () => {
       void queryClient.invalidateQueries({ queryKey: ['contentDrafts', selectedCompanyId] });
       await refetchDrafts();
@@ -357,7 +364,7 @@ export function ContentReviewPage() {
                     {draftsLoading
                       ? '加载草稿中...'
                       : draftsError
-                        ? '加载失败：' + draftsError.message
+                        ? `加载失败：${draftsError.message}`
                         : `共 ${filteredDrafts.length} 条草稿`}
                   </CardDescription>
                 </div>
@@ -463,7 +470,9 @@ function TagList({ tags }: { tags: string[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {tags.map((t, i) => (
-        <Badge key={i} variant="outline" className="text-xs">
+        // 只读展示列表，无重排/增删，index 作 key 无渲染风险
+        // biome-ignore lint/suspicious/noArrayIndexKey: 见上行说明
+        <Badge key={`${t}-${i}`} variant="outline" className="text-xs">
           {t}
         </Badge>
       ))}
@@ -477,7 +486,9 @@ function BulletList({ items }: { items: string[] }) {
   return (
     <ul className="list-disc pl-5 space-y-1">
       {items.map((it, i) => (
-        <li key={i}>{it}</li>
+        // 只读展示列表，无重排/增删，index 作 key 无渲染风险
+        // biome-ignore lint/suspicious/noArrayIndexKey: 见上行说明
+        <li key={`${it}-${i}`}>{it}</li>
       ))}
     </ul>
   );

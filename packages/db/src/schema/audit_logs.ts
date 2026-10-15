@@ -1,12 +1,12 @@
 import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  text,
-  jsonb,
   foreignKey,
   index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.ts';
 import { users } from './users.ts';

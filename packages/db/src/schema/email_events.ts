@@ -1,15 +1,15 @@
 import {
-  pgTable,
-  uuid,
-  varchar,
-  timestamp,
-  text,
-  jsonb,
   foreignKey,
   index,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
 } from 'drizzle-orm/pg-core';
-import { tenants } from './tenants.ts';
 import { emailSends } from './email_sends.ts';
+import { tenants } from './tenants.ts';
 
 export const emailEvents = pgTable(
   'email_events',

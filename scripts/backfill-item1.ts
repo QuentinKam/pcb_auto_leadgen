@@ -38,8 +38,7 @@ loadEnvFile(resolve(REPO_ROOT, '.env'));
 process.env.DATABASE_URL ??= 'postgresql://pcb_user:dev_only_local@localhost:5432/pcb_leadgen';
 
 // SEC 合规 User-Agent（必须 Company Name Email 格式）
-const SEC_USER_AGENT =
-  process.env.SEC_USER_AGENT ?? 'PCB Leadgen support@example.com';
+const SEC_USER_AGENT = process.env.SEC_USER_AGENT ?? 'PCB Leadgen support@example.com';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -207,7 +206,7 @@ console.log(`Found ${rows.length} companies needing backfill\n`);
 
 let success = 0;
 let skipped = 0;
-let failed = 0;
+const failed = 0;
 
 for (const row of rows) {
   console.log(`▸ ${row.name}`);
@@ -236,7 +235,7 @@ for (const row of rows) {
   );
 
   if (!businessText) {
-    console.log(`  ✗ extractItemBusiness returned null (10-K/A or no Item 1)`);
+    console.log('  ✗ extractItemBusiness returned null (10-K/A or no Item 1)');
     skipped++;
     continue;
   }
@@ -244,22 +243,22 @@ for (const row of rows) {
   console.log(`  ✓ Item 1 extracted: ${businessText.length} chars`);
 
   if (DRY_RUN) {
-    console.log(`  (dry-run) would update raw_payload.businessOverview`);
+    console.log('  (dry-run) would update raw_payload.businessOverview');
     success++;
     continue;
   }
 
   // 更新 raw_payload
-  const newPayload = { ...(row.rawPayload as Record<string, unknown>), businessOverview: businessText };
-  await db
-    .update(companies)
-    .set({ rawPayload: newPayload })
-    .where(eq(companies.id, row.id));
-  console.log(`  ✓ raw_payload updated`);
+  const newPayload = {
+    ...(row.rawPayload as Record<string, unknown>),
+    businessOverview: businessText,
+  };
+  await db.update(companies).set({ rawPayload: newPayload }).where(eq(companies.id, row.id));
+  console.log('  ✓ raw_payload updated');
   success++;
 }
 
-console.log(`\n=== Done ===`);
+console.log('\n=== Done ===');
 console.log(`  Success: ${success}`);
 console.log(`  Skipped: ${skipped}`);
 console.log(`  Failed:  ${failed}`);

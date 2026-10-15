@@ -1,13 +1,9 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import {
-  mailApi,
-  type WarmupStatusResponse,
-  type EmailCampaignItem,
-} from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { type EmailCampaignItem, type WarmupStatusResponse, mailApi } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 
 const CAMPAIGN_PAGE_SIZE = 10;
 

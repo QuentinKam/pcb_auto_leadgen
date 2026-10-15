@@ -1,26 +1,30 @@
-import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { type Context, Hono } from 'hono';
 import { z } from 'zod';
+import { resolveTenantId } from '../middleware/auth.ts';
+import { type AppEnv, TRACE_HEADER, getTraceId } from '../middleware/trace.ts';
 
 const SCORER_URL = process.env.SCORER_URL ?? 'http://localhost:3002';
 const TIMEOUT_MS = 120_000;
 
-export const contentRoutes = new Hono();
+export const contentRoutes = new Hono<AppEnv>();
 
-function getForwardHeaders(c: Parameters<Parameters<Hono['use']>[1]>[0]) {
+function getForwardHeaders(c: Context<AppEnv>) {
   const headers = new Headers();
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   if (tenantId) headers.set('X-Tenant-Id', tenantId);
   const ct = c.req.header('Content-Type');
   if (ct) headers.set('Content-Type', ct);
   const accept = c.req.header('Accept');
   if (accept) headers.set('Accept', accept);
+  const traceId = getTraceId(c);
+  if (traceId) headers.set(TRACE_HEADER, traceId);
   return headers;
 }
 
 contentRoutes.get('/profile/:companyId', async (c) => {
   const companyId = c.req.param('companyId');
-  const headers = getForwardHeaders(c as never);
+  const headers = getForwardHeaders(c);
 
   try {
     const res = await fetch(`${SCORER_URL}/content/profile/${companyId}`, {
@@ -41,7 +45,7 @@ contentRoutes.get('/profile/:companyId', async (c) => {
 
 contentRoutes.post('/profile/:companyId', async (c) => {
   const companyId = c.req.param('companyId');
-  const headers = getForwardHeaders(c as never);
+  const headers = getForwardHeaders(c);
 
   try {
     const res = await fetch(`${SCORER_URL}/content/profile/${companyId}`, {
@@ -79,7 +83,7 @@ contentRoutes.post(
   }),
   async (c) => {
     const payload = c.req.valid('json' as never);
-    const headers = getForwardHeaders(c as never);
+    const headers = getForwardHeaders(c);
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
     try {
@@ -103,7 +107,7 @@ contentRoutes.post(
 
 contentRoutes.get('/drafts/:companyId', async (c) => {
   const companyId = c.req.param('companyId');
-  const headers = getForwardHeaders(c as never);
+  const headers = getForwardHeaders(c);
 
   try {
     const res = await fetch(`${SCORER_URL}/content/drafts/${companyId}`, {
@@ -141,7 +145,7 @@ contentRoutes.patch(
   async (c) => {
     const draftId = c.req.param('draftId');
     const payload = c.req.valid('json' as never);
-    const headers = getForwardHeaders(c as never);
+    const headers = getForwardHeaders(c);
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
     try {

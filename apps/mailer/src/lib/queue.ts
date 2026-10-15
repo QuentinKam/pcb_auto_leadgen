@@ -1,22 +1,6 @@
-import { Queue } from 'bullmq';
+import { SEND_QUEUE_NAME, createSendQueue } from '@pcb/queue';
 import { redis } from './redis.ts';
 
-export const SEND_QUEUE_NAME = 'pcb-mailer-sends';
+export { type SendJobPayload, SEND_QUEUE_NAME } from '@pcb/queue';
 
-export const sendQueue = new Queue(SEND_QUEUE_NAME, {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
-    removeOnComplete: 1000,
-    removeOnFail: 5000,
-  },
-});
-
-export type SendJobPayload = {
-  tenantId: string;
-  emailSendId: string;
-};
+export const sendQueue = createSendQueue(redis);

@@ -1,4 +1,4 @@
-import type { TemplateContext, ParsedContent, ContentVariant } from '../types.ts';
+import type { ContentVariant, ParsedContent, TemplateContext } from '../types.ts';
 
 /**
  * 内容模板基类
@@ -38,18 +38,35 @@ Hard rules:
   }
 
   /**
-   * 解析 LLM 输出，提取 subject / body / usedFacts / gaps
+   * 解析 LLM 输出，提取 subject / body / usedFacts / suspectFacts / gaps
    * 默认实现：直接把全文作为 body，gaps 和 usedFacts 通过正则提取
-   * 子类可覆盖以处理结构化输出
+   * 子类可覆盖以处理结构化输出，但引用校验请复用 resolveUsedFacts
    */
-  parseOutput(text: string): ParsedContent {
+  parseOutput(text: string, ctx: TemplateContext): ParsedContent {
     const gaps = this.extractGaps(text);
-    const usedFacts = this.extractUsedFacts(text);
+    const { valid, suspect } = this.resolveUsedFacts(text, ctx);
     const cleanedBody = this.stripFactMarkers(text.trim());
     return {
       body: cleanedBody,
-      usedFacts,
+      usedFacts: valid,
+      suspectFacts: suspect,
       gaps,
+    };
+  }
+
+  /**
+   * 校验正文引用的事实 ID 是否来自本次注入的事实包
+   * LLM 偶尔会编造形似 [F-xxx] 的引用，这类引用若直接展示会误导业务员
+   */
+  protected resolveUsedFacts(
+    text: string,
+    ctx: TemplateContext
+  ): { valid: string[]; suspect: string[] } {
+    const allowed = new Set((ctx.industryFacts ?? []).map((f) => f.id));
+    const ids = this.extractUsedFacts(text);
+    return {
+      valid: ids.filter((id) => allowed.has(id)),
+      suspect: ids.filter((id) => !allowed.has(id)),
     };
   }
 

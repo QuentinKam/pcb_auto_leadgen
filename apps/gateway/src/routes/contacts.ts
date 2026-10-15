@@ -1,11 +1,13 @@
-import { Hono } from 'hono';
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { contacts, db } from '@pcb/db';
+import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { Hono } from 'hono';
+import { resolveTenantId } from '../middleware/auth.ts';
+import type { AppEnv } from '../middleware/trace.ts';
 
-export const contactsRoutes = new Hono();
+export const contactsRoutes = new Hono<AppEnv>();
 
 contactsRoutes.get('/', async (c) => {
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   if (!tenantId) {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
   }
@@ -44,7 +46,7 @@ contactsRoutes.get('/', async (c) => {
 });
 
 contactsRoutes.get('/first-by-company/:companyId', async (c) => {
-  const tenantId = c.req.header('X-Tenant-Id');
+  const tenantId = resolveTenantId(c);
   const companyId = c.req.param('companyId');
   if (!tenantId) {
     return c.json({ error: 'Missing X-Tenant-Id header', code: 'MISSING_TENANT' }, 400);
@@ -64,14 +66,13 @@ contactsRoutes.get('/first-by-company/:companyId', async (c) => {
     .orderBy(desc(contacts.createdAt))
     .limit(1);
 
-  if (rows.length === 0) {
+  const [r] = rows;
+  if (!r) {
     return c.json(
       { error: 'No active contact with email for this company', code: 'NO_CONTACT' },
       404
     );
   }
-
-  const r = rows[0];
   return c.json({
     ...r,
     email: r.email ?? null,
