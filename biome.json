@@ -12,7 +12,8 @@
       ".turbo",
       "coverage",
       "**/tsconfig.json",
-      "**/tsconfig.*.json"
+      "**/tsconfig.*.json",
+      "packages/db/drizzle"
     ]
   },
   "formatter": {
