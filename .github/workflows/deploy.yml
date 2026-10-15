@@ -85,8 +85,9 @@ jobs:
             psql "$DATABASE_URL" -c 'SELECT 1' || true
             exit 1
           fi
+          # runner 无 redis-cli，用 bash 内建 /dev/tcp 探测端口（redis 监听即就绪）
           for i in $(seq 1 15); do
-            if redis-cli -u "$REDIS_URL" ping 2>/dev/null | grep -q PONG; then
+            if (echo > /dev/tcp/localhost/6379) >/dev/null 2>&1; then
               echo "Redis 就绪（第 $i 次探测）"
               exit 0
             fi
@@ -94,7 +95,6 @@ jobs:
             sleep 2
           done
           echo "::error::Redis 30 秒内未就绪"
-          redis-cli -u "$REDIS_URL" ping || true
           exit 1
 
       # 输出经 cat 去掉 TTY，避免 drizzle-kit 的 spinner 把错误信息吞掉
