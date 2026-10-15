@@ -34,20 +34,10 @@ jobs:
           POSTGRES_DB: pcb_leadgen
         ports:
           - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U pcb_user -d pcb_leadgen"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
       redis:
         image: redis:7-alpine
         ports:
           - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
 
     env:
       DATABASE_URL: postgresql://pcb_user:dev_only_local@localhost:5432/pcb_leadgen
@@ -78,8 +68,40 @@ jobs:
             cp "apps/$app/.env.example" "apps/$app/.env"
           done
 
+      # 必须做认证级探测：pg_isready 不校验凭据，且 postgres 镜像 initdb 阶段
+      # 会起一个临时服务再关掉，健康检查可能命中那个窗口误报就绪
+      - name: 等待依赖服务就绪
+        run: |
+          for i in $(seq 1 30); do
+            if psql "$DATABASE_URL" -c 'SELECT 1' >/dev/null 2>&1; then
+              echo "PostgreSQL 就绪（第 $i 次探测）"
+              break
+            fi
+            echo "等待 PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          if ! psql "$DATABASE_URL" -c 'SELECT 1' >/dev/null 2>&1; then
+            echo "::error::PostgreSQL 60 秒内未就绪"
+            psql "$DATABASE_URL" -c 'SELECT 1' || true
+            exit 1
+          fi
+          for i in $(seq 1 15); do
+            if redis-cli -u "$REDIS_URL" ping 2>/dev/null | grep -q PONG; then
+              echo "Redis 就绪（第 $i 次探测）"
+              exit 0
+            fi
+            echo "等待 Redis... ($i/15)"
+            sleep 2
+          done
+          echo "::error::Redis 30 秒内未就绪"
+          redis-cli -u "$REDIS_URL" ping || true
+          exit 1
+
+      # 输出经 cat 去掉 TTY，避免 drizzle-kit 的 spinner 把错误信息吞掉
       - name: 数据库迁移
-        run: pnpm --filter @pcb/db migrate
+        run: |
+          set -o pipefail
+          pnpm --filter @pcb/db migrate 2>&1 | cat
 
       - name: 代码规范检查
         run: pnpm lint
