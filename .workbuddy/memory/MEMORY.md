@@ -14,3 +14,12 @@
 - **gateway 下游地址必须靠 PM2 env 注入**（代码默认是开发端口 3002/3003/3004，与服务器不符）：demo gateway 注入 SCORER_URL=3012/MAILER_URL=3013/COLLECTOR_URL=3014，prod 对应 3022/3023/3024；collector 也需 SCORER_URL=3012(3022) 才能回调打分。缺注入的表现是服务全 online、/health 全 200，但看板报 Collector/Scorer/Mailer unavailable、画像生成失败。
 - collector 的 apps/collector/.env（dev 租户 ID、假库密码、SCORER_URL=3002）全部靠 PM2 env 覆盖，不要在服务器上手改。
 - **部署 = CI 自动（2026-10-15 起）**：push 到 main 触发 GitHub Actions（.github/workflows/deploy.yml → scripts/deploy-server.sh）：服务器 git reset --hard origin/main → pnpm install（npmmirror）→ 构建 dashboard → pm2 restart ecosystem.config.cjs → 健康检查（8 内部端口 + 公网 8090，fail-closed）。纯 md/docs/blog/.github 变更不触发。服务器 /opt/pcb-leadgen 已是 git 仓库，**不得在服务器上手改已跟踪文件**（会被 reset 丢弃）；未跟踪文件（ecosystem.config.cjs、apps/*/.env、facts/）安全。rsync 手动流程降级为备用（DEPLOY.md §5.2，且会与 git 工作区冲突，慎用）。回滚：服务器 git reset --hard <旧commit> + pm2 restart；源码备份在 /root/pcb-deploy-backups/。Secrets：SERVER_HOST / SERVER_USER / SERVER_SSH_KEY。
+
+## 鉴权架构（2026-10-16 启用 JWT 真隔离）
+- prod(8091) 网关 `AUTH_MODE=required`（注入在 ecosystem.config.cjs 的 prod-gateway env），demo(8090) 保持 off。gateway 只认 `Authorization: Bearer <JWT>`（需 JWT_SECRET）或 `X-Api-Key`（需 GATEWAY_API_KEY），不认 nginx basic auth 头。
+- 选 JWT 模式（非 API Key）：tenant_id 强制取自 token，请求头无法冒充——真正租户隔离；API Key 模式 tenant 仍取请求头，隔离不彻底。
+- token 签发：`POST /api/auth/token`（apps/gateway/src/routes/auth.ts），从 nginx 透传的 `Authorization: Basic` 解用户名，用 JWT_SECRET 签 HS256 JWT（sub+tenant_id+exp=12h）。端点被 auth 中间件白名单放行（避免"要 token 才能拿 token"死循环）。
+- 前端 apps/dashboard/src/lib/api.ts lazy token：首请求遇 401 自动调 /api/auth/token（浏览器带 basic auth）拿 JWT 缓存、重发带 Bearer；demo off 首请求 200 不触发，一份前端兼容两环境。
+- nginx pcb-prod.conf 的 location /api/ 已加 `proxy_set_header Authorization $http_authorization;` 透传 basic auth。
+- JWT_SECRET=`openssl rand -hex 32` 生成，写在 ecosystem.config.cjs（600，不入库）。轮换须同步改 ecosystem + 重启 prod-gateway。
+- basic auth 是"登录层"（nginx 弹窗），JWT 是"请求鉴权+强制租户"，两者并存。

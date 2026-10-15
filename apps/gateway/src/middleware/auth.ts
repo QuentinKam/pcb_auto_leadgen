@@ -94,6 +94,12 @@ export function authMiddleware(): MiddlewareHandler<AppEnv> {
       return;
     }
 
+    // token 签发端点本身不要求已持有 token，否则会出现「要 token 才能拿 token」的死循环
+    if (path === '/api/auth/token') {
+      await next();
+      return;
+    }
+
     if (!process.env.JWT_SECRET && !process.env.GATEWAY_API_KEY) {
       console.error(
         '[gateway][auth] AUTH_MODE=required but neither JWT_SECRET nor GATEWAY_API_KEY is set'

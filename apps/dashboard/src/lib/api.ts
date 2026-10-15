@@ -51,16 +51,40 @@ export interface LeadScoreItem {
   createdAt: string;
 }
 
+let cachedToken: string | null = null;
+
+/** 用 basic auth（浏览器在受保护域自动携带）向网关换取 JWT，缓存后复用 */
+async function fetchToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${GATEWAY_URL}/api/auth/token`, { method: 'POST' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { token?: string };
+    return data.token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${GATEWAY_URL}${path}`;
   const headers = new Headers(options.headers);
   headers.set('X-Tenant-Id', TENANT_ID);
   if (USER_ID) headers.set('X-User-Id', USER_ID);
+  if (cachedToken) headers.set('Authorization', `Bearer ${cachedToken}`);
   if (options.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(url, { ...options, headers });
+  let res = await fetch(url, { ...options, headers });
+  // prod 网关 required 模式下，首次未带 token 会被拒（401）；
+  // 此时用 basic auth 换 JWT 后重试一次。demo off 模式首请求直接 200，不触发。
+  if (res.status === 401 && !cachedToken) {
+    cachedToken = await fetchToken();
+    if (cachedToken) {
+      headers.set('Authorization', `Bearer ${cachedToken}`);
+      res = await fetch(url, { ...options, headers });
+    }
+  }
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
     throw new Error(err.error ?? `HTTP ${res.status}`);

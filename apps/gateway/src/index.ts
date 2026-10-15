@@ -11,6 +11,7 @@ import { contactsRoutes } from './routes/contacts.ts';
 import { contentRoutes } from './routes/content.ts';
 import { leadScoresRoutes } from './routes/lead-scores.ts';
 import { mailRoutes } from './routes/mails.ts';
+import { authRoutes } from './routes/auth.ts';
 import { tenantsRoutes } from './routes/tenants.ts';
 
 const app = new Hono<AppEnv>();
@@ -38,6 +39,7 @@ app.route('/api/collectors', collectorsRoutes);
 app.route('/api/contacts', contactsRoutes);
 app.route('/api/content', contentRoutes);
 app.route('/api/mails', mailRoutes);
+app.route('/api/auth', authRoutes);
 
 // 404 兜底
 app.notFound((c) => c.json({ error: 'Not Found', code: 'NOT_FOUND' }, 404));
