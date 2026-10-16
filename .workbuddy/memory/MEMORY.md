@@ -14,6 +14,7 @@
 - **gateway 下游地址必须靠 PM2 env 注入**（代码默认是开发端口 3002/3003/3004，与服务器不符）：demo gateway 注入 SCORER_URL=3012/MAILER_URL=3013/COLLECTOR_URL=3014，prod 对应 3022/3023/3024；collector 也需 SCORER_URL=3012(3022) 才能回调打分。缺注入的表现是服务全 online、/health 全 200，但看板报 Collector/Scorer/Mailer unavailable、画像生成失败。
 - collector 的 apps/collector/.env（dev 租户 ID、假库密码、SCORER_URL=3002）全部靠 PM2 env 覆盖，不要在服务器上手改。
 - **部署 = CI 自动（2026-10-15 起）**：push 到 main 触发 GitHub Actions（.github/workflows/deploy.yml → scripts/deploy-server.sh）：服务器 git reset --hard origin/main → pnpm install（npmmirror）→ 构建 dashboard → pm2 restart ecosystem.config.cjs → 健康检查（8 内部端口 + 公网 8090，fail-closed）。纯 md/docs/blog/.github 变更不触发。服务器 /opt/pcb-leadgen 已是 git 仓库，**不得在服务器上手改已跟踪文件**（会被 reset 丢弃）；未跟踪文件（ecosystem.config.cjs、apps/*/.env、facts/）安全。rsync 手动流程降级为备用（DEPLOY.md §5.2，且会与 git 工作区冲突，慎用）。回滚：服务器 git reset --hard <旧commit> + pm2 restart；源码备份在 /root/pcb-deploy-backups/。Secrets：SERVER_HOST / SERVER_USER / SERVER_SSH_KEY。
+- **服务器 git 工作区可能滞后于 origin/main（已知态）**：历史上一度 HEAD 停在旧提交 `56016ae`、JWT 代码靠未提交 rsync 工作树运行（内容与 main 一致），已于 2026-10-16 执行 `git fetch && git reset --hard origin/main`（→ c21ffe9）+ 重建看板 + `pm2 restart ecosystem.config.cjs` + `pm2 save` 对齐。下次任意 push 触发的 CI `git reset --hard origin/main` 同样会把服务器对齐并自动重建——属自愈。主动对齐命令：`cd /opt/pcb-leadgen && git fetch && git reset --hard origin/main && pnpm install && pnpm --filter @pcb/dashboard build && chown -R root:root /opt/pcb-leadgen && pm2 restart ecosystem.config.cjs && pm2 save`（reset --hard 不会删未跟踪的 ecosystem.config.cjs / .env，安全）。
 
 ## 鉴权架构（2026-10-16 启用 JWT 真隔离）
 - prod(8091) 网关 `AUTH_MODE=required`（注入在 ecosystem.config.cjs 的 prod-gateway env），demo(8090) 保持 off。gateway 只认 `Authorization: Bearer <JWT>`（需 JWT_SECRET）或 `X-Api-Key`（需 GATEWAY_API_KEY），不认 nginx basic auth 头。
@@ -23,3 +24,5 @@
 - nginx pcb-prod.conf 的 location /api/ 已加 `proxy_set_header Authorization $http_authorization;` 透传 basic auth。
 - JWT_SECRET=`openssl rand -hex 32` 生成，写在 ecosystem.config.cjs（600，不入库）。轮换须同步改 ecosystem + 重启 prod-gateway。
 - basic auth 是"登录层"（nginx 弹窗），JWT 是"请求鉴权+强制租户"，两者并存。
+- 隔离已实证（2026-10-16）：在 demo 库插独立测试租户自测，JWT-B + 伪造 `X-Tenant-Id: A` 仍只能读 B 的数据，跨租户读取被阻断；验证后清理。
+- 文档：DEPLOY.md §7.1 记完整鉴权架构；spec.md §10 数据隔离补落实说明。`/root/.pcb_pgpw` 曾丢失已重建（600）。
